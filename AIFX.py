@@ -10,8 +10,9 @@ DEV/TEST:
 print("-- SLTM Neural Network: Forex training and testing environment.")
 
 import numpy as np
-import matplotlib.pyplot as pyplot
+#import matplotlib.pyplot as pyplot
 
+from sys import argv, exit
 from csv import reader, writer
 
 from keras.models    import Sequential, load_model
@@ -22,6 +23,13 @@ from keras.callbacks import Callback
 
 from sklearn.preprocessing import MinMaxScaler
 
+
+if len(argv) > 1:
+	param_file_path = argv[1]
+	if param_file_path[-4:] != ".csv":
+		print('Error in param file - incorrect file type or path.')
+else:
+	exit()
 
 # VARIABLES
 training_data_src = "GBPUSD-2016-09_5s.csv"
@@ -47,7 +55,6 @@ def get_data(src):
 		return [r for r in csv_r]
 
 def reshape_fit_data(data, timesteps):
-	print("*FORMATTING DATA...*")
 	X_train = []
 	y_train = []
 	for i in range(timesteps, len(data)):
@@ -59,11 +66,7 @@ def reshape_fit_data(data, timesteps):
 	
 	return (X_train, y_train)
 	
-def LSTM_RNN():
-	print("*BUILDING LSTM RECURRENT NEURAL NETWORK...*")
-	units = 50
-	return_seq = True
-	dropout = 0.2
+def LSTM_RNN(n_deep_layers=0, units=50, return_seq=True, dropout=0.2):
 	loss_algo = 'mse'
 	optimize_algo = 'adam'
 
@@ -98,7 +101,6 @@ def forecast(data, RNN, fwd_steps=1):
 	X_predict = np.reshape(X_predict, (X_predict.shape[0], X_predict.shape[1], 1))
 
 	price_predictions = []
-	print("*RUNNING PREDICTION...*")
 	for i in range(fwd_steps):
 		predicted_price = RNN.predict(X_predict)[0]
 		
@@ -118,22 +120,42 @@ def log_results(path='results.csv', mode='a', results=[]):
 		for r in results:
 			csv_w.writerow([r])
 
-
-sc = MinMaxScaler(feature_range=(0,1))
+def main(param_file_path):
 	
-training_data        = get_data(training_data_src)
-validate_data        = get_data(validate_data_src)
+	with open(param_file_path, 'r') as csv_f:
+		csv_r  = reader(csv_f)
+		params = {param: i for i, param in enumerate(csv_r.next())}
+			
+	sc = MinMaxScaler(feature_range=(0,1))
 
-training_data_scaled = sc.fit_transform(training_data)
-validate_data_scaled = sc.fit_transform(validate_data)
+	training_data        = get_data(training_data_src)
+	validate_data        = get_data(validate_data_src)
 
-X_train, y_train     = reshape_fit_data(training_data_scaled, timesteps)
-X_val,   y_val       = reshape_fit_data(validate_data_scaled, timesteps)
+	training_data_scaled = sc.fit_transform(training_data)
+	validate_data_scaled = sc.fit_transform(validate_data)
+
+	X_train, y_train     = reshape_fit_data(training_data_scaled, timesteps)
+	X_val,   y_val       = reshape_fit_data(validate_data_scaled, timesteps)
+
+
+	NeuralNet = LSTM_RNN(n_deep_layers=params['deep_layers'],
+						 units        =params['layers'],
+						 dropout      =params['dropout'])
+	history   = LossHistory()
+	NeuralNet.fit(X_train, y_train, 
+				  validation_data=(X_val, y_val),
+				  epochs=params['epochs'],
+				  batch_size=params['batch_size'],
+				  callbacks=[history])
+
 	
 	
-NeuralNet = LSTM_RNN()
-history   = LossHistory()
-NeuralNet.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=n_epochs, batch_size=bat_size, callbacks=[history])
+if '__name__' = __main__():
+	main()
+	
+	
+	
+"""
 #NeuralNet.save('m.h5')
 #NeuralNet = load_model('m.h5')
 
@@ -154,3 +176,4 @@ pyplot.ylabel('loss')
 pyplot.xlabel('epoch')
 pyplot.legend(['train', 'validation'], loc='upper right')
 pyplot.show()
+"""
