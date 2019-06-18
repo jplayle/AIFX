@@ -23,7 +23,7 @@ from keras.callbacks import Callback
 
 from sklearn.preprocessing import MinMaxScaler
 
-
+#change
 if len(argv) > 1:
 	param_file_path = argv[1]
 	if param_file_path[-4:] != ".csv":
