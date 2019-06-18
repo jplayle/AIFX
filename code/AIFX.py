@@ -14,6 +14,7 @@ import numpy as np
 
 from sys import argv, exit
 from csv import reader, writer
+from time import clock
 
 from keras.models    import Sequential, load_model
 from keras.layers    import Dense
@@ -23,22 +24,22 @@ from keras.callbacks import Callback
 
 from sklearn.preprocessing import MinMaxScaler
 
-#change
-if len(argv) > 1:
+param_file_path = ""
+if len(argv) == 3:
 	param_file_path = argv[1]
 	if param_file_path[-4:] != ".csv":
-		print('Error in param file - incorrect file type or path.')
+		print('- Error in param file - incorrect file type or path.')
 else:
+	print('- No parameter file specified.')
 	exit()
 
 # VARIABLES
-training_data_src = "GBPUSD-2016-09_5s.csv"
-validate_data_src = "GBPUSD-2016-10_5s.csv"
-predict_data_dst  = ""
+training_data_src = r"../data/GBPUSD-2016-09_5s.csv"
+validate_data_src = r"../data/GBPUSD-2016-10_5s.csv"
+predict_data_dst  = r""
 
 timesteps = 60
-n_epochs  = 1
-bat_size  = 32
+
 
 class LossHistory(Callback):
 	def on_train_begin(self, logs={}):
@@ -49,6 +50,15 @@ class LossHistory(Callback):
 		self.losses.append(logs.get('loss'))
 		self.val_losses.append(logs.get('val_loss'))
 
+class TimeHistory(Callback):
+	def on_train_begin(self, logs={}):
+		self.train_time = 0
+		self.train_start = clock()
+
+	def on_batch_end(self, batch, logs={}):
+		self.train_time += (clock() - self.train_start)
+		self.train_start = clock()
+		
 def get_data(src):
 	with open(src, 'r') as csv_f:
 		csv_r = reader(csv_f)
@@ -66,20 +76,18 @@ def reshape_fit_data(data, timesteps):
 	
 	return (X_train, y_train)
 	
-def LSTM_RNN(n_deep_layers=0, units=50, return_seq=True, dropout=0.2):
+def LSTM_RNN(in_shape, deep_layers=0, units=50, return_seq=True, dropout=0.2):
 	loss_algo = 'mse'
 	optimize_algo = 'adam'
 
 	regressor = Sequential()
 
-	regressor.add(LSTM(units = units, return_sequences = True, input_shape = (X_train.shape[1], 1)))
+	regressor.add(LSTM(units = units, return_sequences = True, input_shape = in_shape))
 	regressor.add(Dropout(dropout))
-
-	regressor.add(LSTM(units = units, return_sequences = True))
-	regressor.add(Dropout(dropout))
-
-	regressor.add(LSTM(units = units, return_sequences = True))
-	regressor.add(Dropout(dropout))
+	
+	for l in range(deep_layers):
+		regressor.add(LSTM(units = units, return_sequences = True))
+		regressor.add(Dropout(dropout))
 
 	regressor.add(LSTM(units = units))
 	regressor.add(Dropout(dropout))
@@ -114,44 +122,60 @@ def forecast(data, RNN, fwd_steps=1):
 		
 	return price_predictions
 
-def log_results(path='results.csv', mode='a', results=[]):
+def log_results(path='', mode='a', results=[]):
+	#results: array of lists where each list is a row to be written. 
 	with open(path, mode) as csv_f:
 		csv_w = writer(csv_f, lineterminator='\n')
 		for r in results:
-			csv_w.writerow([r])
+			csv_w.writerow(r)
 
+			
 def main(param_file_path):
 	
 	with open(param_file_path, 'r') as csv_f:
 		csv_r  = reader(csv_f)
-		params = {param: i for i, param in enumerate(csv_r.next())}
+		params = {param: i for i, param in enumerate(csv_r.__next__())}
 			
-	sc = MinMaxScaler(feature_range=(0,1))
+		sc = MinMaxScaler(feature_range=(0,1))
 
-	training_data        = get_data(training_data_src)
-	validate_data        = get_data(validate_data_src)
+		training_data        = get_data(training_data_src)
+		validate_data        = get_data(validate_data_src)
 
-	training_data_scaled = sc.fit_transform(training_data)
-	validate_data_scaled = sc.fit_transform(validate_data)
+		training_data_scaled = sc.fit_transform(training_data)
+		validate_data_scaled = sc.fit_transform(validate_data)
 
-	X_train, y_train     = reshape_fit_data(training_data_scaled, timesteps)
-	X_val,   y_val       = reshape_fit_data(validate_data_scaled, timesteps)
+		X_train, y_train     = reshape_fit_data(training_data_scaled, timesteps)
+		X_val,   y_val       = reshape_fit_data(validate_data_scaled, timesteps)
 
-
-	NeuralNet = LSTM_RNN(n_deep_layers=params['deep_layers'],
-						 units        =params['layers'],
-						 dropout      =params['dropout'])
-	history   = LossHistory()
-	NeuralNet.fit(X_train, y_train, 
-				  validation_data=(X_val, y_val),
-				  epochs=params['epochs'],
-				  batch_size=params['batch_size'],
-				  callbacks=[history])
+		for r in csv_r:
+			deep_layers = int(r[params['deep_layers']])
+			units       = int(r[params['units']])
+			dropout     = float(r[params['dropout']])
+			epochs      = int(r[params['epochs']])
+			batch_size  = int(r[params['batch_size']])
+			
+			NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1), \
+								 deep_layers=deep_layers,           \
+								 units      =units,                 \
+								 dropout    =dropout)
+								 
+			loss_hist = LossHistory()
+			time_hist = TimeHistory()
+			
+			print(deep_layers, units, dropout, epochs, batch_size)
+			
+			hist = NeuralNet.fit(X_train, y_train, 
+						         validation_data=(X_val, y_val), \
+						         epochs         =epochs,         \
+						         batch_size     =batch_size,     \
+						         callbacks      =[loss_hist, time_hist], shuffle=False)
+								 
+			print(hist.history['loss'][0], hist.history['val_loss'][0], time_hist.train_time)
 
 	
 	
-if '__name__' = __main__():
-	main()
+if __name__ == '__main__':
+	main(param_file_path)
 	
 	
 	
