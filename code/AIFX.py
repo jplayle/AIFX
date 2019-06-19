@@ -25,7 +25,7 @@ from keras.callbacks import Callback
 from sklearn.preprocessing import MinMaxScaler
 
 param_file_path = ""
-if len(argv) == 3:
+if len(argv) > 1:
 	param_file_path = argv[1]
 	if param_file_path[-4:] != ".csv":
 		print('- Error in param file - incorrect file type or path.')
@@ -170,7 +170,8 @@ def main(param_file_path):
 						         batch_size     =batch_size,     \
 						         callbacks      =[loss_hist, time_hist], shuffle=False)
 								 
-			print(hist.history['loss'][0], hist.history['val_loss'][0], time_hist.train_time)
+			result = [deep_layers, units, dropout, epochs, batch_size, hist.history['loss'][0], hist.history['val_loss'][0], time_hist.train_time]
+			log_results('../testing/results/network_params_test_results.csv', 'a', results=[result])
 
 	
 	
