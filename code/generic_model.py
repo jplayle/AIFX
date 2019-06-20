@@ -10,7 +10,7 @@ DEV/TEST:
 print("-- SLTM Neural Network: Forex training and testing environment.")
 
 import numpy as np
-#import matplotlib.pyplot as pyplot
+import matplotlib.pyplot as pyplot
 
 from sys import argv, exit
 from csv import reader, writer
@@ -29,7 +29,7 @@ training_data_src = r"../data/GBPUSD-2016-09_5s.csv"
 validate_data_src = r"../data/GBPUSD-2016-10_5s.csv"
 predict_data_dst  = r""
 
-timesteps = 60
+window = 60
 
 
 class LossHistory(Callback):
@@ -40,7 +40,6 @@ class LossHistory(Callback):
 	def on_batch_end(self, batch, logs={}):
 		self.losses.append(logs.get('loss'))
 		self.val_losses.append(logs.get('val_loss'))
-		print(logs.get('val_loss'))
 
 class TimeHistory(Callback):
 	def on_train_begin(self, logs={}):
@@ -56,11 +55,11 @@ def get_data(src):
 		csv_r = reader(csv_f)
 		return [r for r in csv_r]
 
-def reshape_fit_data(data, timesteps):
+def reshape_fit_data(data, window):
 	X_train = []
 	y_train = []
-	for i in range(timesteps, len(data)):
-		X_train.append(data[i-timesteps:i, 0])
+	for i in range(window, len(data)):
+		X_train.append(data[i-window:i, 0])
 		y_train.append(data[i, 0])
 
 	X_train, y_train = np.array(X_train), np.array(y_train)
@@ -121,26 +120,42 @@ def log_results(path='', mode='a', results=[]):
 		for r in results:
 			csv_w.writerow([i for i in r])
 
+def plot_prediction(path, timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label=""):
+	len_rv = real_values.size
+	len_pv = pred_values.size
+	pyplot.plot(real_values, [x * timestep for x in range(len_rv)])
+	pyplot.plot(pred_values, [window + (x * timestep) for x in range(len_pv)])
+	
+	pyplot.axis([0, timestep*len_rv, min(min(real_values), min(pred_values)), max(max(real_values), max(pred_values))])
+	pyplot.title(title)
+	pyplot.ylabel(y_label)
+	pyplot.xlabel(x_label)
+	pyplot.legend(['Real', 'Predicted'], loc='upper right')
+	
+	pyplot.savefig(path)
+
+def build_filename(params):
+	return "DL%d-U%d-D%d-E%d-BS%d-t%d-w%d" % (params['DL'], params['U'], params['D'], params['E'], params['BS'], params['t'], params['w']) 
 			
 def main():
 
 	sc = MinMaxScaler(feature_range=(0,1))
 
-	training_data        = get_data(training_data_src)
-	validate_data        = get_data(validate_data_src)
+	training_data = get_data(training_data_src)
+	validate_data = get_data(validate_data_src)
 
 	training_data_scaled = sc.fit_transform(training_data)
-	validate_data_scaled = sc.fit_transform(validate_data)
+	validate_data_scaled = sc.transform(validate_data)
 
-	X_train, y_train     = reshape_fit_data(training_data_scaled, timesteps)
-	X_val,   y_val       = reshape_fit_data(validate_data_scaled, timesteps)
+	X_train, y_train = reshape_fit_data(training_data_scaled, window)
+	X_eval,   y_eval = reshape_fit_data(validate_data_scaled, window)
 
 	deep_layers = 0
 	units       = 50
 	dropout     = 0.2
 	epochs      = 1
 	batch_size  = 32
-
+	
 	NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1), \
 						 deep_layers=deep_layers,           \
 						 units      =units,                 \
@@ -149,42 +164,21 @@ def main():
 	loss_hist = LossHistory()
 	time_hist = TimeHistory()
 
-	hist = NeuralNet.fit(X_train, y_train, 
-						 validation_data=(X_val, y_val), \
+	hist = NeuralNet.fit(X_train, y_train,               \
+						 #validation_data=(X_val, y_val), \
 						 epochs         =epochs,         \
 						 batch_size     =batch_size,     \
 						 callbacks      =[loss_hist, time_hist], shuffle=False)
+	#NeuralNet.save('m.h5')
 
-	result = [[loss_hist.losses[x], loss_hist.val_losses[x]] for x in range(len(loss_hist.losses))]
-	log_results('../testing/results/fit_check.csv', 'a', results=result)
-	for r in result:
-		print(r)
+	#NeuralNet = load_model("m.h5")
+	#eval = NeuralNet.evaluate(X_eval, y_eval, batch_size=batch_size)
+	pred = NeuralNet.predict(X_eval, verbose=1)
+	pred = sc.inverse_transform(pred)
+	
+	log_results('../testing/results/pred.csv', 'a', results=pred)
+	plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.jpg", timestep=5, window=60, real_values=validate_data, pred_values=pred, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
 	
 	
 if __name__ == '__main__':
 	main()
-	
-	
-	
-"""
-#NeuralNet.save('m.h5')
-#NeuralNet = load_model('m.h5')
-
-#price_predictions = forecast(test_data_scaled, NeuralNet, fwd_steps=10)
-#price_predictions = sc.inverse_transform(price_predictions)
-
-#log_results('results.csv', 'w')
-train_loss = history.losses
-val_loss   = history.val_losses
-print(len(train_loss), len(val_loss))
-print(type(train_loss), type(val_loss))
-
-max_i = min(len(train_loss), len(val_loss))
-pyplot.plot(train_loss[:max_i])
-pyplot.plot(val_loss[:max_i])
-pyplot.title('model train vs validation loss')
-pyplot.ylabel('loss')
-pyplot.xlabel('epoch')
-pyplot.legend(['train', 'validation'], loc='upper right')
-pyplot.show()
-"""
