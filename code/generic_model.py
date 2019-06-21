@@ -31,7 +31,6 @@ predict_data_dst  = r""
 
 window = 60
 
-
 class LossHistory(Callback):
 	def on_train_begin(self, logs={}):
 		self.losses = []
@@ -55,13 +54,27 @@ def get_data(src):
 		csv_r = reader(csv_f)
 		return [r for r in csv_r]
 
-def reshape_fit_data(data, window):
+def reshape_fit_data_timesteps(data, window):
+	# reshapes data into a series of arrays, each one of length=window and incremented by timestep
 	X_train = []
 	y_train = []
 	for i in range(window, len(data)):
 		X_train.append(data[i-window:i, 0])
 		y_train.append(data[i, 0])
 
+	X_train, y_train = np.array(X_train), np.array(y_train)
+	X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+	
+	return (X_train, y_train)
+	
+def reshape_fit_data_windows(data, window):
+	# reshapes data into series of arrays, each one of length=window and incremented by window
+	X_train = []
+	y_train = []
+	for i in range(int(len(data) / window)):
+		X_train.append(data[i*window:(i+1)*window, 0])
+		y_train.append([data[(i+1)*window, 0]])
+		
 	X_train, y_train = np.array(X_train), np.array(y_train)
 	X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
 	
@@ -121,7 +134,7 @@ def log_results(path='', mode='a', results=[]):
 			csv_w.writerow([i for i in r])
 
 def plot_prediction(path, timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label=""):
-	len_rv = real_values.size
+	len_rv = len(real_values)
 	len_pv = pred_values.size
 	pyplot.plot(real_values, [x * timestep for x in range(len_rv)])
 	pyplot.plot(pred_values, [window + (x * timestep) for x in range(len_pv)])
@@ -136,24 +149,26 @@ def plot_prediction(path, timestep, window, real_values=[], pred_values=[], titl
 
 def build_filename(params):
 	return "DL%d-U%d-D%d-E%d-BS%d-t%d-w%d" % (params['DL'], params['U'], params['D'], params['E'], params['BS'], params['t'], params['w']) 
-			
+
+	
 def main():
 
-	sc = MinMaxScaler(feature_range=(0,1))
+	sc1 = MinMaxScaler(feature_range=(0,1))
+	sc2 = MinMaxScaler(feature_range=(0,1))
 
 	training_data = get_data(training_data_src)
 	validate_data = get_data(validate_data_src)
 
-	training_data_scaled = sc.fit_transform(training_data)
-	validate_data_scaled = sc.transform(validate_data)
+	training_data_scaled = sc1.transform(training_data)
+	validate_data_scaled = sc2.transform(validate_data)
 
-	X_train, y_train = reshape_fit_data(training_data_scaled, window)
-	X_eval,   y_eval = reshape_fit_data(validate_data_scaled, window)
+	X_train, y_train = reshape_fit_data_windows(training_data_scaled, window)
+	X_eval,  y_eval  = reshape_fit_data_windows(validate_data_scaled, window)
 
 	deep_layers = 0
-	units       = 50
+	units       = 5
 	dropout     = 0.2
-	epochs      = 1
+	epochs      = 5
 	batch_size  = 32
 	
 	NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1), \
@@ -165,7 +180,7 @@ def main():
 	time_hist = TimeHistory()
 
 	hist = NeuralNet.fit(X_train, y_train,               \
-						 #validation_data=(X_val, y_val), \
+						 validation_data=(X_eval, y_eval), \
 						 epochs         =epochs,         \
 						 batch_size     =batch_size,     \
 						 callbacks      =[loss_hist, time_hist], shuffle=False)
@@ -174,10 +189,18 @@ def main():
 	#NeuralNet = load_model("m.h5")
 	#eval = NeuralNet.evaluate(X_eval, y_eval, batch_size=batch_size)
 	pred = NeuralNet.predict(X_eval, verbose=1)
-	pred = sc.inverse_transform(pred)
+	pred = sc2.inverse_transform(pred)
 	
-	log_results('../testing/results/pred.csv', 'a', results=pred)
-	plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.jpg", timestep=5, window=60, real_values=validate_data, pred_values=pred, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
+	result = []
+	for x, p_real in enumerate(validate_data):
+		try:
+			p_pred = pred[x][0]
+		except IndexError:
+			p_pred = None
+		result.append([p_real[0], p_pred])
+		
+	log_results('../testing/results/pred2.csv', 'a', results=result)
+	#plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.jpg", timestep=5, window=60, real_values=validate_data, pred_values=pred, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
 	
 	
 if __name__ == '__main__':
