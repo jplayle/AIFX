@@ -29,7 +29,14 @@ training_data_src = r"../data/GBPUSD-2016-09_5s.csv"
 validate_data_src = r"../data/GBPUSD-2016-10_5s.csv"
 predict_data_dst  = r""
 
-window = 60
+params = {'timestep':    5,
+		  'window':      1000,
+		  'deep_layers': 0,
+		  'units':       100,
+		  'dropout':     0.2,
+		  'epochs':      5,
+		  'batch_size':  32
+		 }
 
 class LossHistory(Callback):
 	def on_train_begin(self, logs={}):
@@ -128,18 +135,21 @@ def forecast(data, RNN, fwd_steps=1):
 
 def log_results(path='', mode='a', results=[]):
 	#results: array of lists where each list is a row to be written. 
+	print('Logging results...')
 	with open(path, mode) as csv_f:
 		csv_w = writer(csv_f, lineterminator='\n')
 		for r in results:
 			csv_w.writerow([i for i in r])
 
-def plot_prediction(path, timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label=""):
-	len_rv = len(real_values)
-	len_pv = pred_values.size
-	pyplot.plot(real_values, [x * timestep for x in range(len_rv)])
-	pyplot.plot(pred_values, [window + (x * timestep) for x in range(len_pv)])
+def plot_prediction(path, timestep, window, results, title="", y_label="", x_label=""):
+	# results format = [time(s), p_real, p_pred]
 	
-	pyplot.axis([0, timestep*len_rv, min(min(real_values), min(pred_values)), max(max(real_values), max(pred_values))])
+	print('Plotting results...')
+	t_array = [x[0] for x in results]
+	pyplot.plot(t_array, [x[1] for x in results])
+	pyplot.plot(t_array, [x[2] for x in results])
+	
+	#pyplot.axis([0, timestep*len_rv, min(min(real_values), min(pred_values)), max(max(real_values), max(pred_values))])
 	pyplot.title(title)
 	pyplot.ylabel(y_label)
 	pyplot.xlabel(x_label)
@@ -152,55 +162,51 @@ def build_filename(params):
 
 	
 def main():
-
-	sc1 = MinMaxScaler(feature_range=(0,1))
-	sc2 = MinMaxScaler(feature_range=(0,1))
+	
+	timestep = params['timestep']
+	window =   params['window']
+	
+	sc = MinMaxScaler(feature_range=(0,1))
 
 	training_data = get_data(training_data_src)
 	validate_data = get_data(validate_data_src)
+	validate_data = validate_data[:int(len(validate_data)/5)]
+ 
+	sc.fit_transform(training_data + validate_data)
 
-	training_data_scaled = sc1.transform(training_data)
-	validate_data_scaled = sc2.transform(validate_data)
-
+	training_data_scaled = sc.transform(training_data)
+	validate_data_scaled = sc.transform(validate_data)
+	
 	X_train, y_train = reshape_fit_data_windows(training_data_scaled, window)
 	X_eval,  y_eval  = reshape_fit_data_windows(validate_data_scaled, window)
 
-	deep_layers = 0
-	units       = 5
-	dropout     = 0.2
-	epochs      = 5
-	batch_size  = 32
 	
 	NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1), \
-						 deep_layers=deep_layers,           \
-						 units      =units,                 \
-						 dropout    =dropout)
+						 deep_layers=params['deep_layers'], \
+						 units      =params['units'],       \
+						 dropout    =params['dropout'])
 
 	loss_hist = LossHistory()
 	time_hist = TimeHistory()
 
-	hist = NeuralNet.fit(X_train, y_train,               \
-						 validation_data=(X_eval, y_eval), \
-						 epochs         =epochs,         \
-						 batch_size     =batch_size,     \
-						 callbacks      =[loss_hist, time_hist], shuffle=False)
-	#NeuralNet.save('m.h5')
+	NeuralNet.fit(X_train, y_train,                  \
+			   validation_data=(X_eval, y_eval),     \
+			   epochs         =params['epochs'],     \
+			   batch_size     =params['batch_size'], \
+			   callbacks      =[loss_hist, time_hist], shuffle=False)
+	#NeuralNet.save('m1.h5')
 
-	#NeuralNet = load_model("m.h5")
+	#NeuralNet = load_model("m1.h5")
 	#eval = NeuralNet.evaluate(X_eval, y_eval, batch_size=batch_size)
 	pred = NeuralNet.predict(X_eval, verbose=1)
-	pred = sc2.inverse_transform(pred)
+	pred = sc.inverse_transform(pred)
 	
 	result = []
-	for x, p_real in enumerate(validate_data):
-		try:
-			p_pred = pred[x][0]
-		except IndexError:
-			p_pred = None
-		result.append([p_real[0], p_pred])
+	for x in range(pred.size):
+		result.append([(x+1)*window*timestep, float(validate_data[(x+1)*window][0]), pred[x][0]])
 		
-	log_results('../testing/results/pred2.csv', 'a', results=result)
-	#plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.jpg", timestep=5, window=60, real_values=validate_data, pred_values=pred, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
+	#log_results('../testing/results/pred.csv', 'a', results=result)
+	plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.png", timestep=timestep, window=window, results=result, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
 	
 	
 if __name__ == '__main__':

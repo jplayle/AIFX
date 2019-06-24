@@ -142,7 +142,7 @@ def main(param_file_path):
 		validate_data        = get_data(validate_data_src)
 
 		training_data_scaled = sc.fit_transform(training_data)
-		validate_data_scaled = sc.fit_transform(validate_data)
+		validate_data_scaled = sc.transform(validate_data)
 
 		X_train, y_train     = reshape_fit_data(training_data_scaled, timesteps)
 		X_val,   y_val       = reshape_fit_data(validate_data_scaled, timesteps)
