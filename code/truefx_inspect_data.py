@@ -1,5 +1,5 @@
 from csv import reader, writer
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from os import listdir, path
 from sys import argv, exit
 
@@ -11,16 +11,14 @@ Unit of continuation - 1 week, checks performed:
 - Start day, end (DONE)
 - All days present? (DONE)
 - Biggest time gap & when it occurred (DONE)
-
 Dev
 - correct week change identification algorithm
-
 """
 
 if len(argv) >= 2:
 	try:
 		root_path = argv[1]
-		#currency  = argv[2]
+		currency  = argv[2]
 	except Exception:
 		exit()
 else:
@@ -36,6 +34,7 @@ def inspect_days(csv_r, prev_dt=''):
 	
 	if prev_dt == '':
 		t0 = datetime.strptime(csv_r[0][1], "%Y%m%d %H:%M:%S.%f")
+		date_0 = date(int(csv_r[1][1][:4]), int(csv_r[1][1][4:6]), int(csv_r[1][1][6:8]))
 	else:
 		t0 = prev_dt
 		
@@ -52,33 +51,31 @@ def inspect_days(csv_r, prev_dt=''):
 		tn = datetime.strptime(r[1], "%Y%m%d %H:%M:%S.%f")
 		dn = tn.weekday()
 		
-		if (tn - t0).days >= 1:
-			
+		date_n = date(int(r[1][:4]), int(r[1][4:6]), int(r[1][6:8]))
 		
-		if dn != d0:
-			d_diff = dn - d0
-			if dn == 6 and d0 != 4: #it's a new week but friday was missing
-				days_awol += d_diff - 2
-				#awol_list.append([])
-				t0 = tn
-				d0 = dn
-				continue
-			elif dn != 6 and d_diff > 1:
-				days_awol += d_diff - 1
-			d0 = dn
+		d_diff = (date_n - date_0).days
+		if d_diff > 1:
+			for d in range(d_diff-1):
+				bd = date_0 + timedelta(days=d+1)
+				if bd.weekday() != 5:
+					days_awol += 1
+					awol_list.append(bd)
+			t0     = tn
+			date_0 = date_n
+			continue
 			
 		tgap = (tn - t0).seconds
 		if tgap > max_tgap:
 			max_tgap = tgap
 			
-		t0 = tn
-	
-	return [days_awol, max_tgap, tn]
+		t0     = tn
+		date_0 = date_n
+		
+	return [days_awol, max_tgap, tn, awol_list]
 	
 def inspect_month(src, dst=''):
 	"""
 	dst = root_dir_out + '\\' + currency + '_inspection.csv'
-
 	if path.exists(dst):
 		while True:
 			inst = raw_input('Inspection already exists. Continue? [Y/n]: ')
@@ -93,9 +90,8 @@ def inspect_month(src, dst=''):
 					
 def inspect_AT(root_path, currency=''):
 	# format all time
-	"""
+	
 	dst = root_dir_out + '\\' + currency + '_inspection.csv'
-
 	if path.exists(dst):
 		while True:
 			inst = raw_input('Inspection already exists. Continue? [Y/n]: ')
@@ -103,25 +99,28 @@ def inspect_AT(root_path, currency=''):
 				return
 			elif inst == 'Y':
 				break
-	"""
-	print(str(datetime.now())[:-7])
 	
-	for year in listdir(root_path):
-		for x, month in enumerate(listdir(root_path + '/' + year)):
-			fpath = root_path + '/' + year + '/' + month
-			with open(fpath, 'r') as csv_f:
-				if x == 0:
-					result = inspect_days(list(reader(csv_f)))
-				else:
-					result = inspect_days(list(reader(csv_f)))#, prev_dt=t0)
-				t0 = result[2]
-				print(month, result[0], result[1])
+	print('START TIME: ', str(datetime.now())[:-7])
+	
+	with open(dst, 'w') as csv_wf:
+		csv_w = writer(csv_wf, lineterminator='\n')
+		for year in listdir(root_path):
+			for x, month in enumerate(listdir(root_path + '/' + year)):
+				fpath = root_path + '/' + year + '/' + month
+				with open(fpath, 'r') as csv_f:
+					if x == 0:
+						result = inspect_days(list(reader(csv_f)))
+					else:
+						result = inspect_days(list(reader(csv_f)))#, prev_dt=t0)
+					t0  = result[2]
+					row = [month, result[0], result[1]] + [awol_date for awol_date in result[3]] 
+					csv_w.writerow(row)
 							
 							
 def main():
 
 	#inspect_month(root_path)
-	inspect_AT(root_path)
+	inspect_AT(root_path, currency)
 	
 	return
 	
