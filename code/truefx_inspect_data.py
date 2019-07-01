@@ -13,129 +13,115 @@ Unit of continuation - 1 week, checks performed:
 - Biggest time gap & when it occurred (DONE)
 
 Dev
-- 
-- Handle end of file
+- correct week change identification algorithm
 
 """
 
-if len(argv) == 3:
+if len(argv) >= 2:
 	try:
 		root_path = argv[1]
-		currency  = argv[2]
+		#currency  = argv[2]
 	except Exception:
-		print('Exit - incorrect timestep.')
 		exit()
 else:
 	print('Exit - too few inputs specified.')
 	exit()
-
-def inspect_raw_data(csv_r, csv_w, prev_dt=''):
-	# Read-write algorithm for inspecting data
-	# csv_r: list object from csv file (data input).
-	# csv_w: writer object for csv file (data output).
+	
+def inspect_days(csv_r, prev_dt=''):
+	# Check for continuity of days only
+	# key assumption: in no case is an entire week (or more) missing
 	
 	weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+	days_map = {6:6, 0:5, 1:4, 2:3, 3:2, 4:1}
 	
 	if prev_dt == '':
-		w_t0 = datetime.strptime(csv_r[0][1], "%Y%m%d %H:%M:%S.%f")
+		t0 = datetime.strptime(csv_r[0][1], "%Y%m%d %H:%M:%S.%f")
 	else:
-		w_t0 = prev_dt
-		
-	w_start_d = w_t0.weekday()
-	max_tgap  = 0
-	tgap_occ  = w_t0
-	t1        = w_t0
-	d_present = [w_start_d]
-	days_map  = {6:6, 0:5, 1:4, 2:3, 3:2, 4:1}
+		t0 = prev_dt
 		
 	csv_r.pop(0)
 	l_row = sum(1 for r in csv_r)
 	
-	for x, r in enumerate(csv_r):
-		
-		if x == l_row:
-			return datetime.strptime(r[1], "%Y%m%d %H:%M:%S.%f")
+	d0        = t0.weekday()
+	days_awol = 0
+	awol_list = []
+	max_tgap  = 0
+	
+	for r in csv_r:
 			
 		tn = datetime.strptime(r[1], "%Y%m%d %H:%M:%S.%f")
-		print(tn.isocalender())
 		dn = tn.weekday()
 		
-		if dn >= w_start_d:
-			if dn == 6 or (tn - w_t0).days / days_map[w_start_d] >= 1: # check if a sunday or later
-				d_missing = days_map[w_start_d] - len(d_present)
-				result    = [weekdays[w_start_d], weekdays[dn], d_missing, max_tgap, tgap_occ]
-				print(result)
-				csv_w.writerow(result)
-				w_t0      = tn
-				w_start_d = dn
-				max_tgap  = 0
-				tgap_occ  = w_t0
-				t1        = w_t0
-				d_present = [w_start_d]
+		if (tn - t0).days >= 1:
+			
+		
+		if dn != d0:
+			d_diff = dn - d0
+			if dn == 6 and d0 != 4: #it's a new week but friday was missing
+				days_awol += d_diff - 2
+				#awol_list.append([])
+				t0 = tn
+				d0 = dn
 				continue
+			elif dn != 6 and d_diff > 1:
+				days_awol += d_diff - 1
+			d0 = dn
 			
-		if dn not in d_present:
-			d_present.append(dn)
-		
-		tgap = (tn - t1).seconds
+		tgap = (tn - t0).seconds
 		if tgap > max_tgap:
-			max_tgap = tgap 
-			tgap_occ = t1
+			max_tgap = tgap
 			
-		t1 = tn
-		
-		# need to handle last row 
+		t0 = tn
+	
+	return [days_awol, max_tgap, tn]
 	
 def inspect_month(src, dst=''):
-	
+	"""
 	dst = root_dir_out + '\\' + currency + '_inspection.csv'
 
 	if path.exists(dst):
 		while True:
-			inst = input('Inspection already exists. Continue? [Y/n]: ')
+			inst = raw_input('Inspection already exists. Continue? [Y/n]: ')
 			if inst == 'n':
 				return
 			elif inst == 'Y':
 				break
-
+	"""
 	with open(src, 'r') as csv_1:
-		csv_r = reader(csv_1)
-		with open(data_root_dir + '\\' + dst, 'w') as csv_2:
-			csv_w = writer(csv_2, lineterminator='\r')
-
-			inspect_raw_data(csv_r, csv_w)
+		result = inspect_days(list(reader(csv_1)))
+		print(src, result[0], result[1])
 					
-def inspect_AT(root_path, currency):
+def inspect_AT(root_path, currency=''):
 	# format all time
-
+	"""
 	dst = root_dir_out + '\\' + currency + '_inspection.csv'
 
 	if path.exists(dst):
 		while True:
-			inst = input('Inspection already exists. Continue? [Y/n]: ')
+			inst = raw_input('Inspection already exists. Continue? [Y/n]: ')
 			if inst == 'n':
 				return
 			elif inst == 'Y':
 				break
+	"""
+	print(str(datetime.now())[:-7])
 	
-	print(datetime.now())
-		
-	with open(dst, 'w') as csv_2:
-		csv_w = writer(csv_2, lineterminator='\r')
-		
-		for year in listdir(root_path):
-			for month in listdir(root_path + '\\' + year):
-				print(root_path + '\\' + year + '\\' + month)
-				
-				with open(root_path + '\\' + year + '\\' + month, 'r') as csv_f:
-					csv_r = list(reader(csv_f))
-					
-					inspect_raw_data(csv_r, csv_w)
+	for year in listdir(root_path):
+		for x, month in enumerate(listdir(root_path + '/' + year)):
+			fpath = root_path + '/' + year + '/' + month
+			with open(fpath, 'r') as csv_f:
+				if x == 0:
+					result = inspect_days(list(reader(csv_f)))
+				else:
+					result = inspect_days(list(reader(csv_f)))#, prev_dt=t0)
+				t0 = result[2]
+				print(month, result[0], result[1])
 							
 							
 def main():
 
-	inspect_AT(root_path, currency)
+	#inspect_month(root_path)
+	inspect_AT(root_path)
 	
 	return
 	
