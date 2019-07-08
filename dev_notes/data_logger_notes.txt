@@ -1,0 +1,19 @@
+DATA LOGGER
+
+Function: startup_sequence()
+- Establish whether a period of down-time has occurred
+- If true query missing data from IG API and fill in the missing period
+- Maybe: synchronise start of data logging (exact details of this unknown yet)
+
+Function: data_logging()
+- Every 60 seconds read from the dictionary of market data and write it to respective CSV files
+- Write blank row if: connection or data loss of any kind occurred for that snapshot
+
+Function: data_patching()
+- Query price data for snapshots that got missed
+- Patch the missing data into the database
+
+Notes:
+- Some communication required between logging and patching functions for the logger to tell the patcher that some data was missed.
+This is probably best done from the stream itself as it can report down-time from a single point from which the other functions can act accordingly.
+That way the need for locks and multi-threading control is removed and the whole thing simplified greatly.
