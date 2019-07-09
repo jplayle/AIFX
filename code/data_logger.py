@@ -11,7 +11,7 @@ from csv import	(reader, writer)
 import matplotlib.pyplot as	plt
 from time import (clock, sleep)
 from os	import (path, makedirs)
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import (sqrt,	ceil)
 from calendar import weekday
 from threading import Thread
@@ -35,8 +35,9 @@ class IG_API():
 	sub          = "CHART"
 	mode         = "MERGE"
 	interval     = "1MINUTE"
-	targ_fields  = ["BID_OPEN", "BID_HIGH", "BID_LOW", "BID_CLOSE"]
-	field_schema = " ".join(targ_fields + ["CONS_END"])
+	targ_fields  = ["BID_OPEN", "BID_HIGH", "BID_LOW", "BID_CLOSE", "LTV"]
+	aux_fields   = ["UTM", "CONS_END"]
+	field_schema = " ".join(targ_fields + aux_fields)
 	buffer       = "0"
 	max_freq     = "0"
 	keepalive	 = "30000" # revise this
@@ -57,10 +58,9 @@ class IG_API():
 	binding_path	= "/lightstreamer/bind_session.txt"
 	control_path	= "/lightstreamer/control.txt"
 	
-	blank_epic_data = {field: '' for field in targ_fields}
 	epic_data_array = {}
 	for epic in target_epics:
-		epic_data_array[epic] = blank_epic_data
+		epic_data_array[epic] = {field: '' for field in targ_fields}
 
 	def __init__(self, live=False):
 		self.XST = ''
@@ -205,36 +205,48 @@ class IG_API():
 			return True
 		
 		connect()
-		subscribe_all()
+		sub_status = subscribe_all()
+		UPD_TIME   = ''
+		PREV_UTM   = ''
 
 		#	Stream:
 		while True:
 			try:
-				pkt	= read_stream()
-				#print(pkt)
-			except Exception:
-				pkt	= 'none'
-
-			try:
+				pkt	 = read_stream()
 				data = pkt.split("|")
-			except IndexError:
-				continue
+			except ValueError:
+				continue #check
+			except Exception:
+				pkt	= 'none' #check
 				
-			if data[-1:] == "1":
-				# WRITE DATA
-				self.epic_data_array[self.target_epics[epic_id]] = self.blank_epic_data  #reset interval data
-				continue
-			
-			epic_id = int(data[0].split(",")[0]) - 1
-			data    = data[1:-1]
+			epic_id  = int(data.pop(0).split(",")[0])
+			CONS_END = data.pop(-1)
+			UTM      = data.pop(-1)
+			if UTM != '':
+				UPD_TIME = datetime.fromtimestamp(int(UTM) / 1000.0)
+				if PREV_UTM == '': #dev: previous time needs to be queried from the files and recorded per epic, not across the board
+					PREV_UTM == UPD_TIME - timedelta(minutes=1) #remove hard code of interval
+
 			x = 0
 			for d in data:
 				if d != "":
 					self.epic_data_array[self.target_epics[epic_id]][self.targ_fields[x]] = d
 				x += 1
-			if epic_id == -1:
-				print(self.epic_data_array[self.target_epics[epic_id]])
-
+			
+			if CONS_END == "1": #end of candle
+				t_diff = (UPD_TIME - PREV_UTM).minutes
+				if t_diff > 1:
+					for m in range(1, t_diff):
+						gap_time = PREV_UTM + timedelta(minutes=m)
+						#write blank row with this time
+				# WRITE DATA
+				self.epic_data_array[self.target_epics[epic_id]] = {field: '' for field in self.targ_fields}  #reset interval data
+				PREV_UTM = UPD_TIME
+				continue
+				
+				
+				
+				
 			# Stream Maintenance:
 			if pkt == 'none':
 				print("Error receiving	updates	from the server.")
