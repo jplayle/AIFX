@@ -7,6 +7,7 @@ from requests import (get, put,	post, delete)
 from collections import	OrderedDict
 from urllib.request	import urlopen
 from urllib.parse import urlencode
+from urrlib.error import URLError
 from csv import	(reader, writer)
 import matplotlib.pyplot as	plt
 from time import (clock, sleep)
@@ -43,6 +44,7 @@ class IG_API():
 	keepalive	 = "30000" # revise this
 	content_len  = "360000" # revise this
 	rate_limit   = 2  #(30 non-trading requests per minute)
+	void_chars   = ['', '$', '#']
 	
 	subscription_params = {"LS_op": "add",
 						   "LS_schema": field_schema,
@@ -61,6 +63,7 @@ class IG_API():
 	epic_data_array = {}
 	for epic in target_epics:
 		epic_data_array[epic] = {field: '' for field in targ_fields}
+	updates_t_array = {epic: {'PREV': None, 'CURR': None} for epic in target_epics} #Last Update Time - query from start-up sequence in later versions
 
 	def __init__(self, live=False):
 		self.XST = ''
@@ -206,8 +209,6 @@ class IG_API():
 		
 		connect()
 		sub_status = subscribe_all()
-		UPD_TIME   = ''
-		PREV_UTM   = ''
 
 		#	Stream:
 		while True:
@@ -215,33 +216,39 @@ class IG_API():
 				pkt	 = read_stream()
 				data = pkt.split("|")
 			except ValueError:
-				continue #check
-			except Exception:
-				pkt	= 'none' #check
+				#stream maintenance
+				continue
+			except ConnectionError:
+				connect()
+				resub = subscrible_all()
+				if not resub:
+					continue
 				
 			epic_id  = int(data.pop(0).split(",")[0])
+			epic     = self.target_epics[epic_id]
 			CONS_END = data.pop(-1)
 			UTM      = data.pop(-1)
 			if UTM != '':
-				UPD_TIME = datetime.fromtimestamp(int(UTM) / 1000.0)
-				if PREV_UTM == '': #dev: previous time needs to be queried from the files and recorded per epic, not across the board
-					PREV_UTM == UPD_TIME - timedelta(minutes=1) #remove hard code of interval
+				self.updates_t_array[epic]['CURR'] = datetime.fromtimestamp(int(UTM) / 1000.0)
+				if self.updates_t_array[epic]['PREV'] == None: #dev: previous update time needs to be queried from the files on start-up sequence
+					self.updates_t_array[epic]['PREV'] = self.updates_t_array[epic]['CURR'] - timedelta(minutes=1) #remove hard code of interval
 
 			x = 0
 			for d in data:
-				if d != "":
-					self.epic_data_array[self.target_epics[epic_id]][self.targ_fields[x]] = d
+				if d not in self.void_chars:
+					self.epic_data_array[epic][self.targ_fields[x]] = d
 				x += 1
 			
 			if CONS_END == "1": #end of candle
-				t_diff = (UPD_TIME - PREV_UTM).minutes
+				t_prev = self.updates_t_array[epic]['PREV']
+				t_diff = (self.updates_t_array[epic]['CURR'] - t_prev).seconds / 60
 				if t_diff > 1:
 					for m in range(1, t_diff):
-						gap_time = PREV_UTM + timedelta(minutes=m)
-						#write blank row with this time
-				# WRITE DATA
+						gap_time = t_prev + timedelta(minutes=m)
+						#write blank row for each missing minute
+				# WRITE CURRENT OHLCV DATA
 				self.epic_data_array[self.target_epics[epic_id]] = {field: '' for field in self.targ_fields}  #reset interval data
-				PREV_UTM = UPD_TIME
+				self.updates_t_array[epic]['PREV'] = self.updates_t_array[epic]['CURR']
 				continue
 				
 				
