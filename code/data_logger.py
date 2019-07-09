@@ -35,8 +35,8 @@ class IG_API():
 	sub          = "CHART"
 	mode         = "MERGE"
 	interval     = "1MINUTE"
-	targ_fields  = ["BID_OPEN", "BID_HIGH", "BID_LOW", "BID_CLOSE", "CONS_END"]
-	field_schema = " ".join(targ_fields)
+	targ_fields  = ["BID_OPEN", "BID_HIGH", "BID_LOW", "BID_CLOSE"]
+	field_schema = " ".join(targ_fields + ["CONS_END"])
 	buffer       = "0"
 	max_freq     = "0"
 	keepalive	 = "30000" # revise this
@@ -57,8 +57,10 @@ class IG_API():
 	binding_path	= "/lightstreamer/bind_session.txt"
 	control_path	= "/lightstreamer/control.txt"
 	
-	price_array = {}
-	bid_array	= {}
+	blank_epic_data = {field: '' for field in targ_fields}
+	epic_data_array = {}
+	for epic in target_epics:
+		epic_data_array[epic] = blank_epic_data
 
 	def __init__(self, live=False):
 		self.XST = ''
@@ -157,97 +159,6 @@ class IG_API():
 		bid =	float(results['snapshot']['bid'])
 		return [price, bid]
 
-	def read_stream(self):
-		line = self.server_msg.readline().decode().rstrip()
-		return line
-
-	def stream(self, CC_criteria=0.8, visible=False):
-		receiving	= True
-		
-		while	receiving:
-			try:
-				pkt	= self.read_stream()
-			except Exception:
-				pkt	= 'None'
-
-			if pkt[0].isdigit():
-				self.up_time = clock() - self.downtime
-			   
-				epic_id	= int(pkt[:pkt.find(",")])
-
-				#update	the	EPIC's price when a	new	value has arrived:
-				l =	pkt.split('|')
-				
-				if l[2]	!= '' and l[2] != '$' and l[2] != '#':
-					self.bid_array[self.MARKET_epics[epic_id]]	= float(l[2])
-				if l[1]	!= '' and l[1] != '$' and l[1] != '#':
-					self.price_array[self.MARKET_epics[epic_id]] =	float(l[1])
-					self.time_array.append(round(clock(),2))
-				else:
-					continue
-
-				#update	price trails accordingly:
-				
-				
-			else:
-				# Stream Maintenance:
-				if pkt == 'None':
-					start_downtime	= clock()
-					print("Error receiving	updates	from the server.")
-
-					# try to establish	a connection unless	session	time expires
-					while True:
-						try:
-							urlopen('http://www.google.com')	# a	reliable site that will	likely always respond
-							connected = True
-							break
-						except Exception:
-							connected = False
-
-					# if a	connection is present, continue	as normal, else	reconnect
-					self.connect()
-					self.subscription_count = -1
-					for epic in self.MARKET_epics:	#NB: implement capability to pass this to a	separate thread
-						self.subscribe(sub="MARKET", epic=epic, field_schema="OFFER BID")
-
-					self.downtime += clock() -	start_downtime
-				# Continue receiving if	a probe	message	is received:
-				elif pkt ==	"PROBE":
-					print('probe')
-					z = 1
-					continue
-				# Stop receiving if	an error message is	received:
-				elif pkt ==	"ERROR":
-					print("Error message received.")
-					start_downtime	= clock()
-					self.make_safe()
-					self.downtime += clock() -	start_downtime
-				# Rebind the session if	a loop command is received:
-				elif pkt ==	"LOOP":
-					start_downtime	= clock()
-					#print("Rebinding session.", clock())
-					self.connect()
-					self.subscription_count = -1
-					for epic in self.MARKET_epics:
-						self.subscribe(sub="MARKET", epic=epic, field_schema="OFFER BID")
-					#info_logger.info('Rebind')
-					self.downtime += clock() -	start_downtime
-				# Stop receiving and then make-safe	session	if sync	error (bad Session ID) is received:	
-				elif pkt ==	"SYNC ERROR":
-					start_downtime	= clock()
-					print("SYNC error encountered.	Starting from scratch...\n")
-					self.make_safe()
-					self.downtime += clock() -	start_downtime
-				# Stop receiving and restart session (if in	trading	hours) if server ends the stream:
-				elif pkt ==	"END":
-					start_downtime	= clock()
-					print("Session	ended by server. Restarting	session...", clock())
-					self.connect()
-					self.subscription_count = -1
-					for epic in self.MARKET_epics:
-						self.subscribe(sub="MARKET", epic=epic, field_schema="OFFER BID")
-					self.downtime += clock() -	start_downtime
-
 	def data_stream(self):
 		
 		def read_stream():
@@ -290,7 +201,6 @@ class IG_API():
 				except RequestException:
 					return False
 				self.subscription_count += 1
-				break
 					
 			return True
 		
@@ -301,112 +211,113 @@ class IG_API():
 		while True:
 			try:
 				pkt	= read_stream()
-				print(pkt, datetime.utcnow())
-			except Exception as e:
-				print(e)
+				#print(pkt)
+			except Exception:
 				pkt	= 'none'
 
 			try:
-				pkt[0]
+				data = pkt.split("|")
 			except IndexError:
-				print('pkt =', pkt)
 				continue
-	
-			if pkt[0].isdigit():
-				l =	pkt.split('|')
-				if l[1]:
-					if	l[1][0].isdigit():
-						ofr =	float(l[1])
-						updated =	True
-				if l[2]:
-					if	l[2][0].isdigit():
-						bid =	float(l[2])
-						updated =	True
+				
+			if data[-1:] == "1":
+				# WRITE DATA
+				self.epic_data_array[self.target_epics[epic_id]] = self.blank_epic_data  #reset interval data
+				continue
+			
+			epic_id = int(data[0].split(",")[0]) - 1
+			data    = data[1:-1]
+			x = 0
+			for d in data:
+				if d != "":
+					self.epic_data_array[self.target_epics[epic_id]][self.targ_fields[x]] = d
+				x += 1
+			if epic_id == -1:
+				print(self.epic_data_array[self.target_epics[epic_id]])
 
-				# Stream Maintenance:
-				if pkt == 'none':
-					print("Error receiving	updates	from the server.")
+			# Stream Maintenance:
+			if pkt == 'none':
+				print("Error receiving	updates	from the server.")
 
-					# try to establish	a connection unless	session	time expires
-					while True:
-						try:
-							urlopen('http://www.google.com')	# a	reliable site that will	likely always respond
-							connected = True
-							break
-						except Exception:
-							connected = False
-
-					# re-connect and subscribe:
+				# try to establish	a connection unless	session	time expires
+				while True:
 					try:
-						server_msg = urlopen(self.LS_server_name + self.connection_path, self.connection_parameters)
-						cmd =	server_msg.readline().decode().rstrip()
-					except	Exception:
-						continue
-					if	cmd	== "OK":
-						while	True:
-							new_line	= server_msg.readline().decode().rstrip()
-							if new_line:
-								detail_key,	detail_value = new_line.split(":",1)
-								session_details[detail_key]	= detail_value
-							else:
-								break
-						SessionId	= session_details['SessionId']
-						ControlAddress = "https://" +	session_details['ControlAddress']
-						SessionTime =	int(session_details['KeepaliveMillis'])	/ 100
-						cmd =	''
-					self.local_subscription(session_id=SessionId, control_addr=ControlAddress,	table_no=id, sub="MARKET", epic=EPIC, field_schema="OFFER BID")
+						urlopen('http://www.google.com')	# a	reliable site that will	likely always respond
+						connected = True
+						break
+					except Exception:
+						connected = False
 
-				# Continue receiving if	a probe	message	is received:
-				elif pkt ==	"PROBE":
+				# re-connect and subscribe:
+				try:
+					server_msg = urlopen(self.LS_server_name + self.connection_path, self.connection_parameters)
+					cmd =	server_msg.readline().decode().rstrip()
+				except	Exception:
 					continue
+				if	cmd	== "OK":
+					while	True:
+						new_line	= server_msg.readline().decode().rstrip()
+						if new_line:
+							detail_key,	detail_value = new_line.split(":",1)
+							session_details[detail_key]	= detail_value
+						else:
+							break
+					SessionId	= session_details['SessionId']
+					ControlAddress = "https://" +	session_details['ControlAddress']
+					SessionTime =	int(session_details['KeepaliveMillis'])	/ 100
+					cmd =	''
+				self.local_subscription(session_id=SessionId, control_addr=ControlAddress,	table_no=id, sub="MARKET", epic=EPIC, field_schema="OFFER BID")
 
-				# Rebind the session if	a loop command is received:
-				elif pkt ==	"LOOP":
-					# re-connect and subscribe:
-					try:
-						server_msg = urlopen(self.LS_server_name + self.connection_path, self.connection_parameters)
-						cmd =	server_msg.readline().decode().rstrip()
-						break
-					except	Exception:
-						continue
-					if	cmd	== "OK":
-						while	True:
-							new_line	= server_msg.readline().decode().rstrip()
-							if new_line:
-								detail_key,	detail_value = new_line.split(":",1)
-								session_details[detail_key]	= detail_value
-							else:
-								break
-						SessionId	= session_details['SessionId']
-						ControlAddress = "https://" +	session_details['ControlAddress']
-						SessionTime =	int(session_details['KeepaliveMillis'])	/ 100
-						cmd =	''
-					self.local_subscription(session_id=SessionId, control_addr=ControlAddress,	table_no=id, sub="MARKET", epic=EPIC, field_schema="OFFER BID")
+			# Continue receiving if	a probe	message	is received:
+			elif pkt ==	"PROBE":
+				continue
 
-				# Stop receiving and then make-safe	session	if sync	error (bad Session ID) is received:	
-				elif pkt ==	"SYNC ERROR" or	pkt	== "ERROR" or pkt == "END":
-					print("Error encountered. Starting	from scratch...\n")
-					# re-connect and subscribe:
-					try:
-						server_msg = urlopen(self.LS_server_name + self.connection_path, self.connection_parameters)
-						cmd =	server_msg.readline().decode().rstrip()
-						break
-					except	Exception:
-						continue
-					if	cmd	== "OK":
-						while	True:
-							new_line	= server_msg.readline().decode().rstrip()
-							if new_line:
-								detail_key,	detail_value = new_line.split(":",1)
-								session_details[detail_key]	= detail_value
-							else:
-								break
-						SessionId	= session_details['SessionId']
-						ControlAddress = "https://" +	session_details['ControlAddress']
-						SessionTime =	int(session_details['KeepaliveMillis'])	/ 100
-						cmd =	''
-					self.local_subscription(session_id=SessionId, control_addr=ControlAddress,	table_no=id, sub="MARKET", epic=EPIC, field_schema="OFFER BID")
+			# Rebind the session if	a loop command is received:
+			elif pkt ==	"LOOP":
+				# re-connect and subscribe:
+				try:
+					server_msg = urlopen(self.LS_server_name + self.connection_path, self.connection_parameters)
+					cmd =	server_msg.readline().decode().rstrip()
+					break
+				except	Exception:
+					continue
+				if	cmd	== "OK":
+					while	True:
+						new_line	= server_msg.readline().decode().rstrip()
+						if new_line:
+							detail_key,	detail_value = new_line.split(":",1)
+							session_details[detail_key]	= detail_value
+						else:
+							break
+					SessionId	= session_details['SessionId']
+					ControlAddress = "https://" +	session_details['ControlAddress']
+					SessionTime =	int(session_details['KeepaliveMillis'])	/ 100
+					cmd =	''
+				self.local_subscription(session_id=SessionId, control_addr=ControlAddress,	table_no=id, sub="MARKET", epic=EPIC, field_schema="OFFER BID")
 
+			# Stop receiving and then make-safe	session	if sync	error (bad Session ID) is received:	
+			elif pkt ==	"SYNC ERROR" or	pkt	== "ERROR" or pkt == "END":
+				print("Error encountered. Starting	from scratch...\n")
+				# re-connect and subscribe:
+				try:
+					server_msg = urlopen(self.LS_server_name + self.connection_path, self.connection_parameters)
+					cmd =	server_msg.readline().decode().rstrip()
+					break
+				except	Exception:
+					continue
+				if	cmd	== "OK":
+					while	True:
+						new_line	= server_msg.readline().decode().rstrip()
+						if new_line:
+							detail_key,	detail_value = new_line.split(":",1)
+							session_details[detail_key]	= detail_value
+						else:
+							break
+					SessionId	= session_details['SessionId']
+					ControlAddress = "https://" +	session_details['ControlAddress']
+					SessionTime =	int(session_details['KeepaliveMillis'])	/ 100
+					cmd =	''
+				self.local_subscription(session_id=SessionId, control_addr=ControlAddress,	table_no=id, sub="MARKET", epic=EPIC, field_schema="OFFER BID")
 
 	def bind(self):
 		bind_parameters =	bytes(urlencode({"LS_session": self.SessionId
