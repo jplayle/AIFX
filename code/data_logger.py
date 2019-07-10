@@ -1,19 +1,17 @@
-﻿
-# Nerve	centre
-from dateutil.relativedelta	import (relativedelta, FR)
-from queue import (Queue, LifoQueue, Empty,	Full)
+﻿#from dateutil.relativedelta	import (relativedelta, FR)
+#from queue import (Queue, LifoQueue, Empty,	Full)
 from requests.exceptions import	RequestException
 from requests import (get, put,	post, delete)
-from collections import	OrderedDict
+#from collections import	OrderedDict
 from urllib.request	import urlopen
 from urllib.parse import urlencode
-from urrlib.error import URLError
+#from urllib.error import URLError
 from csv import	(reader, writer)
-import matplotlib.pyplot as	plt
+#import matplotlib.pyplot as	plt
 from time import (clock, sleep)
 from os	import (path, makedirs)
 from datetime import datetime, timedelta
-from math import (sqrt,	ceil)
+#from math import (sqrt,	ceil)
 from calendar import weekday
 from threading import Thread
 from getpass import	getpass
@@ -41,7 +39,7 @@ class IG_API():
 	field_schema = " ".join(targ_fields + aux_fields)
 	buffer       = "0"
 	max_freq     = "0"
-	keepalive	 = str(60 * 5 * 1000) #(interval * multiplication factor * convert to milliseconds)
+	keepalive	 = "300000" #(interval(60s) * multiplication factor(5) * convert to milliseconds(1000) = 300,000)
 	content_len  = "360000" # revise this to 
 	rate_limit   = 2  #(30 non-trading requests per minute)
 	void_chars   = ['', '$', '#']
@@ -129,11 +127,6 @@ class IG_API():
 		s1 = txt.find(':',s0)	+ 2
 		s2 = txt.find('"',s1)
 		self.LS_addr =	txt[s1:s2]
-		# get's the status of a market e.g. 'TRADEABLE' and returns the result
-		results = get(self.r00t +	"/markets/"	+ epic,	headers=self.headers, data=self.creds).text
-		results = eval(results.replace("true", "True").replace("false", "False").replace("null", "None"))
-		market_state = results['snapshot']['marketStatus']
-		return market_state
 
 	def logout(self):
 		for n	in range(0,20):
@@ -166,7 +159,7 @@ class IG_API():
 		def connect():
 			session_details = {} # info for session management and control
 			init_resp =	'' # initial response from server about connection status
-			while	True:
+			while True:
 				try:
 					self.server_conn = urlopen(self.LS_addr + self.connection_path, bytes(urlencode(self.connection_parameters), 'utf-8')) # open connection to server
 					init_resp        = read_stream() # get initial response
@@ -222,6 +215,7 @@ class IG_API():
 			try:
 				pkt	 = read_stream()
 				data = pkt.split("|")
+				epic_id = int(data.pop(0).split(",")[0])
 			except ValueError:
 				if pkt == 'PROBE':
 					continue
@@ -229,18 +223,22 @@ class IG_API():
 					bind()
 					continue
 				elif pkt[:3] == 'END':
+					print(pkt)
 					#log error/end reason
 					sleep(3) #LS docs state not recommended to attempt re-connect 'immediately' - exact time unspecified)
 					connect()
 					subscrible_all()
 					continue
-			except ConnectionError:
+				else:
+					print(pkt)
+					continue
+			except ConnectionError as e:
+				print(e)
 				connect()
 				resub = subscrible_all()
 				if not resub:
 					continue
-				
-			epic_id  = int(data.pop(0).split(",")[0])
+
 			epic     = self.target_epics[epic_id]
 			CONS_END = data.pop(-1)
 			UTM      = data.pop(-1)
@@ -256,6 +254,8 @@ class IG_API():
 				x += 1
 			
 			if CONS_END == "1": #end of candle
+				if epic_id == 0:
+					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic])
 				t_prev = self.updates_t_array[epic]['PREV']
 				t_diff = (self.updates_t_array[epic]['CURR'] - t_prev).seconds / 60
 				if t_diff > 1:
@@ -263,7 +263,7 @@ class IG_API():
 						gap_time = t_prev + timedelta(minutes=m)
 						#write blank row for each missing minute
 				# WRITE CURRENT OHLCV DATA
-				self.epic_data_array[self.target_epics[epic_id]] = {field: '' for field in self.targ_fields}  #reset interval data
+				self.epic_data_array[epic] = {field: '' for field in self.targ_fields}  #reset interval data
 				self.updates_t_array[epic]['PREV'] = self.updates_t_array[epic]['CURR']
 				continue
 
