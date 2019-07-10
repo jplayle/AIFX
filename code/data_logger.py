@@ -1,27 +1,23 @@
-﻿#from dateutil.relativedelta	import (relativedelta, FR)
-#from queue import (Queue, LifoQueue, Empty,	Full)
 from requests.exceptions import	RequestException
 from requests import (get, put,	post, delete)
-#from collections import	OrderedDict
 from urllib.request	import urlopen
 from urllib.parse import urlencode
-#from urllib.error import URLError
 from csv import	(reader, writer)
-#import matplotlib.pyplot as	plt
 from time import (clock, sleep)
 from os	import (path, makedirs)
 from datetime import datetime, timedelta
-#from math import (sqrt,	ceil)
-from calendar import weekday
-from threading import Thread
-from getpass import	getpass
+#from calendar import weekday
+#from threading import Thread
+#from getpass import	getpass
 from json import dumps
 from sys import	exit
-import numpy as	np
+#import numpy as	np
 
 """
-FINDINGS
+NOTES etc
 - updates are on the minute, every minute
+- connection loss handling
+- subscription loss handling 
 """
 
 
@@ -39,9 +35,9 @@ class IG_API():
 	field_schema = " ".join(targ_fields + aux_fields)
 	buffer       = "0"
 	max_freq     = "0"
-	keepalive	 = "300000" #(interval(60s) * multiplication factor(5) * convert to milliseconds(1000) = 300,000)
-	content_len  = "36" # revise this to 
-	rate_limit   = 2  #(30 non-trading requests per minute)
+	keepalive	 = "30000" #max value from server (values higher than this return this value)
+	content_len  = "3600" # revise this - what values possible?
+	rate_limit   = 2  #(30 non-trading requests per minute) - still applies to lightstreamer requests?
 	void_chars   = ['', '$', '#']
 	
 	subscription_params = {"LS_op": "add",
@@ -56,6 +52,8 @@ class IG_API():
 	SessionId          = ''
 	ControlAddress     = ''
 	SessionTime        = ''
+	max_session_time   = 6 * 3600 #6hrs, as per IG API docs
+	refresh_t_minus    = 300      #5 mins before the tokens expire
 	
 	connection_path = "/lightstreamer/create_session.txt"
 	binding_path	= "/lightstreamer/bind_session.txt"
@@ -99,16 +97,19 @@ class IG_API():
 
 	def login(self):
 		# login to IG demo API and retrieve security tokens, session ID, session server details etc
-
+		
+		self.headers.pop('X-SECURITY-TOKEN', None) #clear old tokens from HTTP request headers
+		self.headers.pop('CST', None)
+		
 		#Send the post request to log in:
 		while True:
 			try:
 				r =	post(self.r00t + "/session", headers=self.headers, data=self.creds)
+				self.login_time = datetime.utcnow()
 				sleep(self.rate_limit)
 				if r.status_code ==	200:
 					break
 			except RequestException:
-				sleep(self.rate_limit)
 				continue
 
 		#Obtain security tokens & client ID:
@@ -129,18 +130,13 @@ class IG_API():
 		self.LS_addr =	txt[s1:s2]
 
 	def logout(self):
-		for n	in range(0,20):
-			try:
-				end	= delete(self.r00t + "/session", headers=self.headers)
-				if end.status_code != 200 or 'error' in	end.text.lower():
-					print('Error logging out of broker.')
-					print(end.text)
-				else:
-					print('Logged out of broker successfully.')
-				break
-			except RequestException:
-				sleep(30)
-				continue
+		#NEVER CALL LOGOUT WITHOUT AN IMMEDIATE SUBSEQUENT & NON-TRHEADED CALL TO LOGIN()
+		try:
+			end	= delete(self.r00t + "/session", headers=self.headers)
+			sleep(self.rate_limit)
+			return True
+		except RequestException:
+			return False
 
 	def startup_sequence(self):
 		"""
@@ -157,48 +153,71 @@ class IG_API():
 			return self.server_conn.readline().decode().rstrip()
 		
 		def process_stream_control():
-			return True
-
-		def process_data():
-			return True
-			
-		def connect():
-			session_details = {} # info for session management and control
-			init_resp =	'' # initial response from server about connection status
-			while True:
-				try:
-					self.server_conn = urlopen(self.LS_addr + self.connection_path, bytes(urlencode(self.connection_parameters), 'utf-8')) # open connection to server
-					init_resp        = read_stream() # get initial response
-					break
-				except Exception:
-					print('Connection Error	when connecting	to LS server. Waiting 1...')
-					sleep(self.rate_limit)
+			session_details = {}
+			init_resp = read_stream()
 			if init_resp == "OK":
 				while True:
 					new_line = read_stream()
-					if new_line: # extract session details
-						detail_key, detail_value =	new_line.split(":",1)
-						session_details[detail_key] = detail_value
+					if new_line:
+						if '|' not in new_line: # extract session details
+							detail_key, detail_value =	new_line.split(":",1)
+							session_details[detail_key] = detail_value
+						elif '|' in new_line:
+							try:
+								data    = new_line.split("|")
+								epic_id = int(data.pop(0).split(",")[0])
+							except ValueError:
+								continue
+							epic = self.target_epics[epic_id]
+							process_data(epic, data)
 					else:
 						break
 				self.SessionId = session_details['SessionId']
 				self.ControlAddress = "https://" + session_details['ControlAddress']
 				self.SessionTime = int(session_details['KeepaliveMillis']) / 100
-				init_resp = ''
+				return True
+			else:
+				return False
+
+		def process_data(_epic, _data):
+			END  = data.pop(-1)
+			UTM  = data.pop(-1)
+			if UTM != '':
+				self.updates_t_array[_epic]['CURR'] = datetime.fromtimestamp(int(UTM) / 1000.0)
+				if self.updates_t_array[_epic]['PREV'] == None: #dev: previous update time needs to be queried from the files on start-up sequence
+					self.updates_t_array[_epic]['PREV'] = self.updates_t_array[_epic]['CURR'] - timedelta(minutes=1) #remove hard code of interval
+
+			x = 0
+			for d in data:
+				if d not in self.void_chars:
+					self.epic_data_array[_epic][self.targ_fields[x]] = d
+				x += 1
+				
+			return END
+			
+		def connect():
+			while True:
+				try:
+					self.server_conn = urlopen(self.LS_addr + self.connection_path, bytes(urlencode(self.connection_parameters), 'utf-8')) # open connection to server
+					process_stream_control()
+					break
+				except Exception:
+					sleep(self.rate_limit)
 
 		def subscribe_all():
-			for epic in self.target_epics:
+			for table_no, epic in enumerate(self.target_epics):
 				sub_params = self.subscription_params
 				sub_params.update({"LS_session": self.SessionId,
-									"LS_Table":  str(self.subscription_count),
+									"LS_Table":  str(table_no),
 									"LS_id":     ":".join([self.sub, epic, self.interval])})
 				try: 
 					s =	post(self.ControlAddress + self.control_path, data=sub_params)
 					if s.status_code !=	200	or 'error' in s.text.lower():
-						return False
+						# do something to manage dropped subscriptions
+						continue
 				except RequestException:
-					return False
-				self.subscription_count += 1
+					# same as above comment
+					continue
 					
 			return True
 		
@@ -207,6 +226,7 @@ class IG_API():
 			self.bind_session_params['LS_session'] = self.SessionId
 			try:
 				self.server_conn = urlopen(self.ControlAddress + self.binding_path, bytes(urlencode(self.bind_session_params), 'utf-8'))
+				process_stream_control()
 			except RequestException:
 				return False
 			return True
@@ -221,13 +241,14 @@ class IG_API():
 				data = pkt.split("|")
 				epic_id = int(data.pop(0).split(",")[0])
 			except ValueError:
-				print(pkt)
+				# STREAM MAINTENANCE
 				if pkt == 'PROBE':
 					continue
 				elif pkt == 'LOOP':
 					bind()
 					continue
-				elif pkt[:3] == 'END':
+				elif 'END' in pkt:
+					print('END', pkt)
 					#log error/end reason
 					sleep(3) #LS docs state not recommended to attempt re-connect 'immediately' - exact time unspecified)
 					connect()
@@ -237,38 +258,36 @@ class IG_API():
 					continue
 			except ConnectionError as e:
 				print(e)
+				self.logout()
+				self.login()
 				connect()
-				resub = subscrible_all()
-				if not resub:
-					continue
-
+				subscribe_all()
+				continue
+			
 			epic     = self.target_epics[epic_id]
-			CONS_END = data.pop(-1)
-			UTM      = data.pop(-1)
-			if UTM != '':
-				self.updates_t_array[epic]['CURR'] = datetime.fromtimestamp(int(UTM) / 1000.0)
-				if self.updates_t_array[epic]['PREV'] == None: #dev: previous update time needs to be queried from the files on start-up sequence
-					self.updates_t_array[epic]['PREV'] = self.updates_t_array[epic]['CURR'] - timedelta(minutes=1) #remove hard code of interval
-
-			x = 0
-			for d in data:
-				if d not in self.void_chars:
-					self.epic_data_array[epic][self.targ_fields[x]] = d
-				x += 1
+			CONS_END = process_data(epic, data)
 			
 			if CONS_END == "1": #end of candle
 				if epic_id == 0:
 					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic])
+				t_curr = self.updates_t_array[epic]['CURR']
 				t_prev = self.updates_t_array[epic]['PREV']
-				t_diff = (self.updates_t_array[epic]['CURR'] - t_prev).seconds / 60
+				t_diff = (t_curr - t_prev).seconds / 60
 				if t_diff > 1:
 					for m in range(1, t_diff):
 						gap_time = t_prev + timedelta(minutes=m)
 						#write blank row for each missing minute
 				# WRITE CURRENT OHLCV DATA
 				self.epic_data_array[epic] = {field: '' for field in self.targ_fields}  #reset interval data
-				self.updates_t_array[epic]['PREV'] = self.updates_t_array[epic]['CURR']
-				continue
+				self.updates_t_array[epic]['PREV'] = t_curr
+				
+				if (datetime.utcnow() - self.login_time).seconds >= self.max_session_time - self.refresh_t_minus:
+					print('refresh cycle')
+					#obtain new security tokens et al
+					self.logout()
+					self.login()
+					connect()
+					subscribe_all()
 
 	def price_history(self, epic):
 		hdrs = self.headers
@@ -302,7 +321,9 @@ class IG_API():
 		- Details tbc.
 		"""
 		return None
-		
+
+	
+	
 def	command_line():
 	while True:
 		instruction =	input("{0:-^80}\n".format("'exit' to stop data logger."))
@@ -321,11 +342,8 @@ def	main():
 
 	broker.data_stream()
 
-	command_line()
+	#command_line()
 
-	broker.unsubscribe_all()
-
-	broker.terminate()
 	broker.logout()
 	
 	
