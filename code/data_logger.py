@@ -40,7 +40,7 @@ class IG_API():
 	buffer       = "0"
 	max_freq     = "0"
 	keepalive	 = "300000" #(interval(60s) * multiplication factor(5) * convert to milliseconds(1000) = 300,000)
-	content_len  = "360000" # revise this to 
+	content_len  = "36" # revise this to 
 	rate_limit   = 2  #(30 non-trading requests per minute)
 	void_chars   = ['', '$', '#']
 	
@@ -155,7 +155,13 @@ class IG_API():
 		
 		def read_stream():
 			return self.server_conn.readline().decode().rstrip()
+		
+		def process_stream_control():
+			return True
 
+		def process_data():
+			return True
+			
 		def connect():
 			session_details = {} # info for session management and control
 			init_resp =	'' # initial response from server about connection status
@@ -197,12 +203,10 @@ class IG_API():
 			return True
 		
 		def bind():
+			#this method seems to be really slow - resub could be faster but riskier
 			self.bind_session_params['LS_session'] = self.SessionId
 			try:
-				s =	post(self.ControlAddress + self.binding_path, data=self.bind_session_params)
-				print('bind response', s.text)
-				if s.status_code !=	200	or 'error' in s.text.lower():
-						return False
+				self.server_conn = urlopen(self.ControlAddress + self.binding_path, bytes(urlencode(self.bind_session_params), 'utf-8'))
 			except RequestException:
 				return False
 			return True
@@ -217,20 +221,19 @@ class IG_API():
 				data = pkt.split("|")
 				epic_id = int(data.pop(0).split(",")[0])
 			except ValueError:
+				print(pkt)
 				if pkt == 'PROBE':
 					continue
 				elif pkt == 'LOOP':
 					bind()
 					continue
 				elif pkt[:3] == 'END':
-					print(pkt)
 					#log error/end reason
 					sleep(3) #LS docs state not recommended to attempt re-connect 'immediately' - exact time unspecified)
 					connect()
 					subscrible_all()
 					continue
 				else:
-					print(pkt)
 					continue
 			except ConnectionError as e:
 				print(e)
@@ -266,15 +269,6 @@ class IG_API():
 				self.epic_data_array[epic] = {field: '' for field in self.targ_fields}  #reset interval data
 				self.updates_t_array[epic]['PREV'] = self.updates_t_array[epic]['CURR']
 				continue
-
-
-		#(A full unload followed by a	full reload):
-		self.unsubscribe_all()
-		self.terminate()
-		self.connect()
-		self.subscription_count =	-1
-		for epic in MARKET_epics:
-			self.subscribe(sub="MARKET",	epic=epic, field_schema="OFFER BID")
 
 	def price_history(self, epic):
 		hdrs = self.headers
