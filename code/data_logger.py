@@ -272,7 +272,7 @@ class IG_API():
 					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic])
 				t_curr = self.updates_t_array[epic]['CURR']
 				t_prev = self.updates_t_array[epic]['PREV']
-				t_diff = (t_curr - t_prev).seconds / 60
+				t_diff = int((t_curr - t_prev).seconds / 60)
 				if t_diff > 1:
 					for m in range(1, t_diff):
 						gap_time = t_prev + timedelta(minutes=m)
