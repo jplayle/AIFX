@@ -1,4 +1,4 @@
-from requests.exceptions import	RequestException
+﻿from requests.exceptions import	RequestException
 from requests import (get, put,	post, delete)
 from urllib.request	import urlopen
 from urllib.parse import urlencode
@@ -16,8 +16,13 @@ from sys import	exit
 """
 NOTES etc
 - updates are on the minute, every minute
+
+DEV
 - connection loss handling
-- subscription loss handling 
+- subscription loss handling
+- what to do about $ and # - ignore or use to identify a missing price?
+- handle pkt == ''
+- make sure session can be refreshed from outside of CONS_END
 """
 
 
@@ -30,6 +35,7 @@ class IG_API():
 	sub          = "CHART"
 	mode         = "MERGE"
 	interval     = "1MINUTE"
+	interval_val = 1 #integer value of interval, expressed in minutes
 	targ_fields  = ["BID_OPEN", "BID_HIGH", "BID_LOW", "BID_CLOSE", "LTV"]
 	aux_fields   = ["UTM", "CONS_END"]
 	field_schema = " ".join(targ_fields + aux_fields)
@@ -38,7 +44,8 @@ class IG_API():
 	keepalive	 = "30000" #max value from server (values higher than this return this value)
 	content_len  = "3600" # revise this - what values possible?
 	rate_limit   = 2  #(30 non-trading requests per minute) - still applies to lightstreamer requests?
-	void_chars   = ['', '$', '#']
+	null_chars   = ['$', '#'] #real empty string values ('' implies no change since previous value)
+	void_chars   = ['', '$', '#'] #in these cases make no changes to data
 	
 	subscription_params = {"LS_op": "add",
 						   "LS_schema": field_schema,
@@ -60,8 +67,10 @@ class IG_API():
 	control_path	= "/lightstreamer/control.txt"
 	
 	epic_data_array = {}
+	prev_data_array = {}
 	for epic in target_epics:
 		epic_data_array[epic] = {field: '' for field in targ_fields}
+		prev_data_array[epic] = {field: '' for field in targ_fields}
 	updates_t_array = {epic: {'PREV': None, 'CURR': None} for epic in target_epics} #Last Update Time - query from start-up sequence in later versions
 
 	def __init__(self, live=False):
@@ -149,6 +158,15 @@ class IG_API():
 				
 	def data_stream(self):
 		
+		def connect():
+			while True:
+				try:
+					self.server_conn = urlopen(self.LS_addr + self.connection_path, bytes(urlencode(self.connection_parameters), 'utf-8')) # open connection to server
+					process_stream_control()
+					break
+				except Exception:
+					sleep(self.rate_limit)
+		
 		def read_stream():
 			return self.server_conn.readline().decode().rstrip()
 		
@@ -179,31 +197,6 @@ class IG_API():
 			else:
 				return False
 
-		def process_data(_epic, _data):
-			END  = data.pop(-1)
-			UTM  = data.pop(-1)
-			if UTM != '':
-				self.updates_t_array[_epic]['CURR'] = datetime.fromtimestamp(int(UTM) / 1000.0)
-				if self.updates_t_array[_epic]['PREV'] == None: #dev: previous update time needs to be queried from the files on start-up sequence
-					self.updates_t_array[_epic]['PREV'] = self.updates_t_array[_epic]['CURR'] - timedelta(minutes=1) #remove hard code of interval
-
-			x = 0
-			for d in data:
-				if d not in self.void_chars:
-					self.epic_data_array[_epic][self.targ_fields[x]] = d
-				x += 1
-				
-			return END
-			
-		def connect():
-			while True:
-				try:
-					self.server_conn = urlopen(self.LS_addr + self.connection_path, bytes(urlencode(self.connection_parameters), 'utf-8')) # open connection to server
-					process_stream_control()
-					break
-				except Exception:
-					sleep(self.rate_limit)
-
 		def subscribe_all():
 			for table_no, epic in enumerate(self.target_epics):
 				sub_params = self.subscription_params
@@ -219,10 +212,25 @@ class IG_API():
 					# same as above comment
 					continue
 					
-			return True
+			return True				
+				
+		def process_data(_epic, _data):
+			END = data.pop(-1)
+			UTM = data.pop(-1)
+			if UTM != '':
+				self.updates_t_array[_epic]['CURR'] = datetime.fromtimestamp(int(UTM) / 1000.0)
+				if self.updates_t_array[_epic]['PREV'] == None: #dev: previous update time needs to be queried from the files on start-up sequence
+					self.updates_t_array[_epic]['PREV'] = self.updates_t_array[_epic]['CURR'] - timedelta(minutes=self.interval_val)
+
+			x = 0
+			for d in data:
+				if d not in self.void_chars:
+					self.epic_data_array[_epic][self.targ_fields[x]] = d
+				x += 1
+				
+			return END
 		
 		def bind():
-			#this method seems to be really slow - resub could be faster but riskier
 			self.bind_session_params['LS_session'] = self.SessionId
 			try:
 				self.server_conn = urlopen(self.ControlAddress + self.binding_path, bytes(urlencode(self.bind_session_params), 'utf-8'))
@@ -231,10 +239,15 @@ class IG_API():
 				return False
 			return True
 			
+		def on_loop_reset(current_time):
+			self.prev_data_array[epic] = self.epic_data_array[epic]                 #store previous data array
+			self.epic_data_array[epic] = {field: '' for field in self.targ_fields}  #reset interval data
+			self.updates_t_array[epic]['PREV'] = current_time                       #store previous update time
+			
 		connect()
 		sub_status = subscribe_all()
 
-		#	Stream:
+		# Stream:
 		while True:
 			try:
 				pkt	 = read_stream()
@@ -267,23 +280,34 @@ class IG_API():
 			epic     = self.target_epics[epic_id]
 			CONS_END = process_data(epic, data)
 			
-			if CONS_END == "1": #end of candle
+			if CONS_END == "1": #end of candle - write data
 				if epic_id == 0:
 					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic])
+					
 				t_curr = self.updates_t_array[epic]['CURR']
 				t_prev = self.updates_t_array[epic]['PREV']
-				t_diff = int((t_curr - t_prev).seconds / 60)
-				if t_diff > 1:
+				t_diff = int((t_curr - t_prev).seconds / (60 * self.interval_val))
+				
+				if t_diff > self.interval_val:
 					for m in range(1, t_diff):
 						gap_time = t_prev + timedelta(minutes=m)
-						#write blank row for each missing minute
-				# WRITE CURRENT OHLCV DATA
-				self.epic_data_array[epic] = {field: '' for field in self.targ_fields}  #reset interval data
-				self.updates_t_array[epic]['PREV'] = t_curr
+						#WRITE BLANK ROW
+				elif t_diff == 1:
+					# if blank strings in data then values remain unchanged from previous interval so retrieve previous values - only valid when no intervals missed
+					for k, v in self.epic_data_array[epic].items():
+						if v == '':
+							self.epic_data_array[epic][k] = self.prev_data_array[epic][k] 
+				else:
+					#log error
+					on_loop_reset(t_curr)
+					continue #don't write in case of server sending erroneous messages that are in the past
 				
+				# WRITE CURRENT OHLCV DATA
+				
+				on_loop_reset(t_curr)
+				
+				# check for session refresh
 				if (datetime.utcnow() - self.login_time).seconds >= self.max_session_time - self.refresh_t_minus:
-					print('refresh cycle')
-					#obtain new security tokens et al
 					self.logout()
 					self.login()
 					connect()
@@ -341,7 +365,8 @@ def	main():
 	broker.login()
 
 	broker.data_stream()
-
+	
+	#send notification here
 	#command_line()
 
 	broker.logout()
