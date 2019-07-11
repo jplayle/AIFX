@@ -1,4 +1,4 @@
-﻿from requests.exceptions import	RequestException
+from requests.exceptions import	RequestException
 from requests import (get, put,	post, delete)
 from urllib.request	import urlopen
 from urllib.parse import urlencode
@@ -11,18 +11,14 @@ from datetime import datetime, timedelta
 #from getpass import	getpass
 from json import dumps
 from sys import	exit
+from socket import timeout as socket_timeout_exception
 #import numpy as	np
 
 """
 NOTES etc
 - updates are on the minute, every minute
-
 DEV
-- connection loss handling
-- subscription loss handling
 - what to do about $ and # - ignore or use to identify a missing price?
-- handle pkt == ''
-- make sure session can be refreshed from outside of CONS_END
 """
 
 
@@ -59,9 +55,9 @@ class IG_API():
 	SessionId          = ''
 	ControlAddress     = ''
 	SessionTime        = ''
+	connection_timeout = int(int(keepalive) * 0.9 / 1000) #connection loss - server connection must timeout to be reset if nothing received after this time (allow 10% head room for good measure)
 	max_session_time   = 6 * 3600 #6hrs, as per IG API docs
 	refresh_t_minus    = 300      #5 mins before the tokens expire
-	
 	connection_path = "/lightstreamer/create_session.txt"
 	binding_path	= "/lightstreamer/bind_session.txt"
 	control_path	= "/lightstreamer/control.txt"
@@ -119,6 +115,7 @@ class IG_API():
 				if r.status_code ==	200:
 					break
 			except RequestException:
+				sleep(self.rate_limit)
 				continue
 
 		#Obtain security tokens & client ID:
@@ -161,10 +158,11 @@ class IG_API():
 		def connect():
 			while True:
 				try:
-					self.server_conn = urlopen(self.LS_addr + self.connection_path, bytes(urlencode(self.connection_parameters), 'utf-8')) # open connection to server
+					self.server_conn = urlopen(self.LS_addr + self.connection_path, bytes(urlencode(self.connection_parameters), 'utf-8'), timeout=self.connection_timeout) # open connection to server
 					process_stream_control()
 					break
 				except Exception:
+					sy_token_handler()
 					sleep(self.rate_limit)
 		
 		def read_stream():
@@ -198,21 +196,29 @@ class IG_API():
 				return False
 
 		def subscribe_all():
-			for table_no, epic in enumerate(self.target_epics):
-				sub_params = self.subscription_params
-				sub_params.update({"LS_session": self.SessionId,
-									"LS_Table":  str(table_no),
-									"LS_id":     ":".join([self.sub, epic, self.interval])})
-				try: 
-					s =	post(self.ControlAddress + self.control_path, data=sub_params)
-					if s.status_code !=	200	or 'error' in s.text.lower():
-						# do something to manage dropped subscriptions
+			success = False
+			while True:
+				for table_no, epic in enumerate(self.target_epics):
+					sub_params = self.subscription_params
+					sub_params.update({"LS_session": self.SessionId,
+										"LS_Table":  str(table_no),
+										"LS_id":     ":".join([self.sub, epic, self.interval])})
+					try: 
+						s =	post(self.ControlAddress + self.control_path, data=sub_params)
+						sleep(0.1)
+						if s.status_code ==	200:
+							success = True
+						else:
+							success = False
+					except RequestException:
 						continue
-				except RequestException:
-					# same as above comment
-					continue
-					
-			return True				
+				if success:
+					break
+				else:
+					new_tokens = sy_token_handler()
+					if new_tokens:
+						reset_stream()
+						break
 				
 		def process_data(_epic, _data):
 			END = data.pop(-1)
@@ -233,7 +239,7 @@ class IG_API():
 		def bind():
 			self.bind_session_params['LS_session'] = self.SessionId
 			try:
-				self.server_conn = urlopen(self.ControlAddress + self.binding_path, bytes(urlencode(self.bind_session_params), 'utf-8'))
+				self.server_conn = urlopen(self.ControlAddress + self.binding_path, bytes(urlencode(self.bind_session_params), 'utf-8'), timeout=self.connection_timeout)
 				process_stream_control()
 			except RequestException:
 				return False
@@ -243,6 +249,19 @@ class IG_API():
 			self.prev_data_array[epic] = self.epic_data_array[epic]                 #store previous data array
 			self.epic_data_array[epic] = {field: '' for field in self.targ_fields}  #reset interval data
 			self.updates_t_array[epic]['PREV'] = current_time                       #store previous update time
+			
+		def reset_stream():
+			connect()
+			subscribe_all()
+			
+		def sy_token_handler():
+			# check for if session security tokens need updating and update if so
+			if (datetime.utcnow() - self.login_time).seconds >= self.max_session_time - self.refresh_t_minus:
+				self.logout()
+				self.login()
+				return True
+			else:
+				return False
 			
 		connect()
 		sub_status = subscribe_all()
@@ -263,18 +282,14 @@ class IG_API():
 				elif 'END' in pkt:
 					print('END', pkt)
 					#log error/end reason
-					sleep(3) #LS docs state not recommended to attempt re-connect 'immediately' - exact time unspecified)
-					connect()
-					subscrible_all()
+					sleep(3) #LS docs state not recommended to attempt re-connect 'immediately' - exact time unspecified
+					reset_stream()
 					continue
 				else:
-					continue
-			except ConnectionError as e:
-				print(e)
-				self.logout()
-				self.login()
-				connect()
-				subscribe_all()
+					print('err', pkt)
+					reset_stream()
+			except socket_timeout_exception:
+				reset_stream()
 				continue
 			
 			epic     = self.target_epics[epic_id]
@@ -299,7 +314,7 @@ class IG_API():
 							self.epic_data_array[epic][k] = self.prev_data_array[epic][k] 
 				else:
 					#log error
-					on_loop_reset(t_curr)
+					self.epic_data_array[epic] = {field: '' for field in self.targ_fields}
 					continue #don't write in case of server sending erroneous messages that are in the past
 				
 				# WRITE CURRENT OHLCV DATA
@@ -307,11 +322,9 @@ class IG_API():
 				on_loop_reset(t_curr)
 				
 				# check for session refresh
-				if (datetime.utcnow() - self.login_time).seconds >= self.max_session_time - self.refresh_t_minus:
-					self.logout()
-					self.login()
-					connect()
-					subscribe_all()
+				new_tokens = sy_token_handler()
+				if new_tokens:
+					reset_stream()
 
 	def price_history(self, epic):
 		hdrs = self.headers
