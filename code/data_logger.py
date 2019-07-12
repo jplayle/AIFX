@@ -1,11 +1,13 @@
-﻿from requests.exceptions import	RequestException
+from requests.exceptions import	RequestException
 from requests import (get, put,	post, delete)
 from urllib.request	import urlopen
 from urllib.parse import urlencode
 from csv import	(reader, writer)
-from time import (clock, sleep)
+from time import (clock, sleep, time)
 from os	import (path, makedirs)
+import pytz
 from datetime import datetime, timedelta
+from datetime import time as dt_time
 #from calendar import weekday
 #from threading import Thread
 #from getpass import	getpass
@@ -56,22 +58,22 @@ class IG_API():
 	ControlAddress     = ''
 	SessionTime        = ''
 	connection_timeout = int(int(keepalive) * 0.9 / 1000) #connection loss - server connection must timeout to be reset if nothing received after this time (allow 10% head room for good measure)
-	max_session_time   = 6 * 3600 #6hrs, as per IG API docs
+	max_session_time   = 6 * 3600 #6hrs, as per IG API docs - new security tokens will be obtained after this time (logout, login again)
 	refresh_t_minus    = max_session_time * 0.01 #refresh when session time reaches 99% of maximum
-	connection_path = "/lightstreamer/create_session.txt"
-	binding_path	= "/lightstreamer/bind_session.txt"
-	control_path	= "/lightstreamer/control.txt"
+	connection_path    = "/lightstreamer/create_session.txt"
+	binding_path	   = "/lightstreamer/bind_session.txt"
+	control_path	   = "/lightstreamer/control.txt"
 	
 	epic_data_array = {}
 	prev_data_array = {}
 	for epic in target_epics:
 		epic_data_array[epic] = {field: '' for field in targ_fields}
 		prev_data_array[epic] = {field: '' for field in targ_fields}
-	updates_t_array = {epic: {'PREV': None, 'CURR': None} for epic in target_epics} #Last Update Time - query from start-up sequence in later versions
+	updates_t_array           = {epic: {'PREV': None, 'CURR': None} for epic in target_epics} #Last Update Time - query from start-up sequence in later versions
 	
-	FX_market_global_open_t  = '22:00:00' #GMT/UTC
-	FX_market_global_close_t = '22:00:00' #GMT/UTC
-	#look into ways of not having this hard-coded
+	FX_market_global_open_t  = dt_time(22) #open hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc) 
+	FX_market_global_close_t = dt_time(21) #close hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc)
+	local_tz                 = pytz.timezone("Europe/London") #set timezone string to be the same as the broker account - data timestamps are then handled accordingly
 
 	def __init__(self, live=False):
 		self.XST = ''
@@ -147,6 +149,49 @@ class IG_API():
 			return True
 		except RequestException:
 			return False
+		
+	def handle_tgap(self, dt0, dt1):
+		"""
+		- return missing datetimes at self.interval separation between two datetime objects, excluding market closures
+		- just an initial brute force iterative method - faster method possible by doing time diffs (although on testing this method proves more than adequate)
+		- speed: fri-sat takes < 0.1s, 1 week takes ~1s (i7 processor, ubuntu 16)
+		- doesn't check for public holidays/other misc. market closures
+		"""
+		def utc_delta(local_dt):
+			"""
+			- returns number of hours difference between a given datetime+timezone and utc
+			- required because data timestamps are in 'account local time' which may be not be same as utc due to different timezone, DST etc
+			"""
+			try:
+				utc_dt = self.local_tz.localize(local_dt, is_dst=None).astimezone(pytz.utc) #get n hrs between utc and timezone local time
+			except pytz.exceptions.AmbiguousTimeError:
+				utc_dt = self.local_tz.localize(local_dt, is_dst=False).astimezone(pytz.utc) #clocks go back = same time occurs twice hence ambiguous error = dst is ending
+			except pytz.exceptions.NonExistentTimeError:
+				utc_dt = self.local_tz.localize(local_dt, is_dst=True).astimezone(pytz.utc) #clocks go fwd = entire hour skipped hence non-existent error = dst is starting
+			return int((local_dt - utc_dt.replace(tzinfo=None)).seconds / 3600)
+		
+		n_mins = int((dt1 - dt0).total_seconds() / (60 * self.interval_val))
+		missing_datetimes = []
+		
+		for m in range(1, n_mins):
+			dt0  += timedelta(minutes=1) 
+			utc_t = dt0 - timedelta(hours=utc_delta(dt0)) #timestamp from server shifted to utc for comparison to market hours which are in utc
+			w_day = utc_t.weekday()
+			
+			if w_day not in [4, 5, 6]: #not friday, saturday or sunday
+				missing_datetimes.append(dt0)
+				
+			elif w_day == 4: #friday - check market closure
+				iday_time = dt_time(utc_t.hour, utc_t.minute) #intra-day time, shifted to utc
+				if iday_time < self.FX_market_global_close_t:
+					missing_datetimes.append(dt0)
+					
+			elif w_day == 6: #sunday - check market closure
+				iday_time = dt_time(utc_t.hour, utc_t.minute) #intra-day time, shifted to utc
+				if iday_time > self.FX_market_global_open_t:
+					missing_datetimes.append(dt0)
+					
+		return missing_datetimes
 
 	def startup_sequence(self):
 		"""
@@ -320,22 +365,15 @@ class IG_API():
 							self.epic_data_array[epic][k] = self.prev_data_array[epic][k] 
 							
 				elif t_diff > self.interval_val:
-					#could be improved - doesn't cover the loss of a Sunday altogether
-					#most robust algo would calc. number of Saturdays occurring between t_curr & t_prev, 
-					# lookup end and start dates for the market over those weekends (or assume them) and write accordingly 
-					if t_curr.weekday() == 6 and t_diff > 1440:
-						pass
-					else:
-						for m in range(1, t_diff):
-							gap_time = t_prev + timedelta(minutes=m)
-							#WRITE BLANK ROW
+					handle_tgap(t_prev, t_curr)
+					
 				else:
 					#log error
 					self.epic_data_array[epic] = {field: '' for field in self.targ_fields}
 					continue #don't write in case of server sending erroneous messages that are in the past
 				
 				if epic_id == 0:
-					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic])
+					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic]) #debug
 				# WRITE CURRENT OHLCV DATA
 				
 				on_loop_reset(t_curr)
@@ -394,6 +432,14 @@ def	main():
 	
 	broker = IG_API()
 	
+	dt_0 = datetime(2019, 7, 12, 20, 31, 0)
+	dt_1 = datetime(2019, 7, 14, 23, 11, 0)
+	t0 = clock()
+	r = broker.handle_tgap(dt_0, dt_1)
+	t1 = clock()
+	print(r)
+	print(t1 - t0)
+	return
 	broker.login()
 
 	broker.data_stream()
