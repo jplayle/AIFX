@@ -1,4 +1,4 @@
-from requests.exceptions import	RequestException
+﻿from requests.exceptions import	RequestException
 from requests import (get, put,	post, delete)
 from urllib.request	import urlopen
 from urllib.parse import urlencode
@@ -57,7 +57,7 @@ class IG_API():
 	SessionTime        = ''
 	connection_timeout = int(int(keepalive) * 0.9 / 1000) #connection loss - server connection must timeout to be reset if nothing received after this time (allow 10% head room for good measure)
 	max_session_time   = 6 * 3600 #6hrs, as per IG API docs
-	refresh_t_minus    = 300      #5 mins before the tokens expire
+	refresh_t_minus    = max_session_time * 0.01 #refresh when session time reaches 99% of maximum
 	connection_path = "/lightstreamer/create_session.txt"
 	binding_path	= "/lightstreamer/bind_session.txt"
 	control_path	= "/lightstreamer/control.txt"
@@ -68,6 +68,10 @@ class IG_API():
 		epic_data_array[epic] = {field: '' for field in targ_fields}
 		prev_data_array[epic] = {field: '' for field in targ_fields}
 	updates_t_array = {epic: {'PREV': None, 'CURR': None} for epic in target_epics} #Last Update Time - query from start-up sequence in later versions
+	
+	FX_market_global_open_t  = '22:00:00' #GMT/UTC
+	FX_market_global_close_t = '22:00:00' #GMT/UTC
+	#look into ways of not having this hard-coded
 
 	def __init__(self, live=False):
 		self.XST = ''
@@ -196,34 +200,41 @@ class IG_API():
 				return False
 
 		def subscribe_all():
-			success = False
-			while True:
-				for table_no, epic in enumerate(self.target_epics):
-					sub_params = self.subscription_params
-					sub_params.update({"LS_session": self.SessionId,
-										"LS_Table":  str(table_no),
-										"LS_id":     ":".join([self.sub, epic, self.interval])})
-					try: 
-						s =	post(self.ControlAddress + self.control_path, data=sub_params)
-						sleep(0.1)
-						if s.status_code ==	200:
-							success = True
-						else:
+			while True: #don't let data streaming start without a full subscription
+				success = False
+				t0 = clock()
+				while (clock() - t0) < self.connection_timeout: #only attempt subscription if connection still alive
+					for table_no, epic in enumerate(self.target_epics):
+						sub_params = self.subscription_params
+						sub_params.update({"LS_session": self.SessionId,
+											"LS_Table":  str(table_no),
+											"LS_id":     ":".join([self.sub, epic, self.interval])})
+						try: 
+							s =	post(self.ControlAddress + self.control_path, data=sub_params)
+							sleep(0.1)
+							if s.status_code ==	200:
+								success = True
+							else:
+								success = False #success might get set to true and then needs subsequent setting to false is a later sub fails
+						except RequestException:
 							success = False
-					except RequestException:
-						continue
+							continue
+					if success:
+						break
+					else:
+						new_tokens = sy_token_handler() #check for security token renewal due to potentially infinite loop
+						if new_tokens:
+							connect()
+							continue
 				if success:
 					break
 				else:
-					new_tokens = sy_token_handler()
-					if new_tokens:
-						reset_stream()
-						break
+					connect()
 				
 		def process_data(_epic, _data):
-			END = data.pop(-1)
-			UTM = data.pop(-1)
-			if UTM != '':
+			IS_END = data.pop(-1)
+			UTM    = data.pop(-1)
+			if UTM not in self.void_chars:
 				self.updates_t_array[_epic]['CURR'] = datetime.fromtimestamp(int(UTM) / 1000.0)
 				if self.updates_t_array[_epic]['PREV'] == None: #dev: previous update time needs to be queried from the files on start-up sequence
 					self.updates_t_array[_epic]['PREV'] = self.updates_t_array[_epic]['CURR'] - timedelta(minutes=self.interval_val)
@@ -234,14 +245,14 @@ class IG_API():
 					self.epic_data_array[_epic][self.targ_fields[x]] = d
 				x += 1
 				
-			return END
+			return IS_END
 		
 		def bind():
 			self.bind_session_params['LS_session'] = self.SessionId
 			try:
 				self.server_conn = urlopen(self.ControlAddress + self.binding_path, bytes(urlencode(self.bind_session_params), 'utf-8'), timeout=self.connection_timeout)
 				process_stream_control()
-			except RequestException:
+			except Exception:
 				return False
 			return True
 			
@@ -263,8 +274,7 @@ class IG_API():
 			else:
 				return False
 			
-		connect()
-		sub_status = subscribe_all()
+		reset_stream()
 
 		# Stream:
 		while True:
@@ -273,7 +283,7 @@ class IG_API():
 				data = pkt.split("|")
 				epic_id = int(data.pop(0).split(",")[0])
 			except ValueError:
-				# STREAM MAINTENANCE
+				#Stream Maintenance
 				if pkt == 'PROBE':
 					continue
 				elif pkt == 'LOOP':
@@ -291,32 +301,41 @@ class IG_API():
 			except socket_timeout_exception:
 				reset_stream()
 				continue
+			except ConnectionError:
+				reset_stream()
+				continue
 			
 			epic     = self.target_epics[epic_id]
 			CONS_END = process_data(epic, data)
 			
-			if CONS_END == "1": #end of candle - write data
-				if epic_id == 0:
-					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic])
-					
+			if CONS_END == "1": #end of candle - write data				
 				t_curr = self.updates_t_array[epic]['CURR']
 				t_prev = self.updates_t_array[epic]['PREV']
 				t_diff = int((t_curr - t_prev).seconds / (60 * self.interval_val))
 				
-				if t_diff > self.interval_val:
-					for m in range(1, t_diff):
-						gap_time = t_prev + timedelta(minutes=m)
-						#WRITE BLANK ROW
-				elif t_diff == 1:
-					# if blank strings in data then values remain unchanged from previous interval so retrieve previous values - only valid when no intervals missed
+				if t_diff == 1:
+					#use previous values if 
 					for k, v in self.epic_data_array[epic].items():
 						if v == '':
 							self.epic_data_array[epic][k] = self.prev_data_array[epic][k] 
+							
+				elif t_diff > self.interval_val:
+					#could be improved - doesn't cover the loss of a Sunday altogether
+					#most robust algo would calc. number of Saturdays occurring between t_curr & t_prev, 
+					# lookup end and start dates for the market over those weekends (or assume them) and write accordingly 
+					if t_curr.weekday() == 6 and t_diff > 1440:
+						pass
+					else:
+						for m in range(1, t_diff):
+							gap_time = t_prev + timedelta(minutes=m)
+							#WRITE BLANK ROW
 				else:
 					#log error
 					self.epic_data_array[epic] = {field: '' for field in self.targ_fields}
 					continue #don't write in case of server sending erroneous messages that are in the past
 				
+				if epic_id == 0:
+					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic])
 				# WRITE CURRENT OHLCV DATA
 				
 				on_loop_reset(t_curr)
@@ -374,7 +393,7 @@ def	command_line():
 def	main():
 	
 	broker = IG_API()
-
+	
 	broker.login()
 
 	broker.data_stream()
