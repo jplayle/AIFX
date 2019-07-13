@@ -10,11 +10,14 @@ from datetime import datetime, timedelta
 from datetime import time as dt_time
 #from calendar import weekday
 #from threading import Thread
-#from getpass import	getpass
+from getpass import getuser, getpass
 from json import dumps
-from sys import	exit
+import sys
 from socket import timeout as socket_timeout_exception
 #import numpy as	np
+import traceback
+import smtplib
+import email
 
 """
 NOTES etc
@@ -60,6 +63,7 @@ class IG_API():
 	connection_timeout = int(int(keepalive) * 0.9 / 1000) #connection loss - server connection must timeout to be reset if nothing received after this time (allow 10% head room for good measure)
 	max_session_time   = 6 * 3600 #6hrs, as per IG API docs - new security tokens will be obtained after this time (logout, login again)
 	refresh_t_minus    = max_session_time * 0.01 #refresh when session time reaches 99% of maximum
+	refresh_count      = 0
 	connection_path    = "/lightstreamer/create_session.txt"
 	binding_path	   = "/lightstreamer/bind_session.txt"
 	control_path	   = "/lightstreamer/control.txt"
@@ -75,7 +79,12 @@ class IG_API():
 	FX_market_global_close_t = dt_time(21) #close hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc)
 	local_tz                 = pytz.timezone("Europe/London") #set timezone string to be the same as the broker account - data timestamps are then handled accordingly
 
-	def __init__(self, live=False):
+	def __init__(self, comms=False):
+		status_sendr_addr = 'joshplayle@hotmail.com'
+		status_recipients = ['joshplayle@hotmail.com']#, 'matthew.a.calder@googlemail.com']
+		if comms:
+			status_sendr_pswd = getpass(prompt='Enter password for emails: ')
+		
 		self.XST = ''
 		self.CST = ''
 		self.client_ID = ''
@@ -103,8 +112,10 @@ class IG_API():
 									  "LS_adapter_set": "DEFAULT",
 									  "LS_keepalive_millis": self.keepalive,
 									  "LS_content_length":   self.content_len}
-				
-		self.subscription_count = 0
+		
+	def ExceptHook(self, _type, value, tb):
+		tb_str = "".join(traceback.format_exception(_type, value, tb))
+		self.send_status_update(subject='DATA LOGGER DOWN - AIFX', message=tb_str)
 
 	def login(self):
 		# login to IG demo API and retrieve security tokens, session ID, session server details etc
@@ -150,6 +161,32 @@ class IG_API():
 		except RequestException:
 			return False
 		
+	def send_status_update(self, subject, message=''):
+		"""
+		- sends an email from self.status_sendr_addr to all addresses in self.status_recipients
+		"""
+		if comms: #toggle comms on and off for dev when many exceptions may be thrown
+			for x in range(30):
+				try:
+					email_server = smtplib.SMTP('smtp.live.com', 587)
+					email_server.ehlo()
+					email_server.starttls()
+					email_server.login(self.status_sendr_addr, self.status_sendr_pswd)
+
+					msg = email.message_from_string(message)
+					msg['From']    = self.status_sendr_addr
+					msg['Subject'] = subject
+
+					for recip_addr in self.status_recipients:
+						msg['To'] = recip_addr
+						email_server.sendmail(self.status_sendr_addr, recip_addr, msg.as_string())
+
+					email_server.quit()
+					break
+				except ConnectionError:
+					sleep(1)
+					continue
+		
 	def handle_tgap(self, dt0, dt1):
 		"""
 		- return missing datetimes at self.interval separation between two datetime objects, excluding market closures
@@ -174,7 +211,7 @@ class IG_API():
 		missing_datetimes = []
 		
 		for m in range(1, n_mins):
-			dt0  += timedelta(minutes=1) 
+			dt0  += timedelta(minutes=self.interval_val) 
 			utc_t = dt0 - timedelta(hours=utc_delta(dt0)) #timestamp from server shifted to utc for comparison to market hours which are in utc
 			w_day = utc_t.weekday()
 			
@@ -196,11 +233,31 @@ class IG_API():
 	def startup_sequence(self):
 		"""
 		1. Check if data files exist and retrieve previous update time from the last row if they do
-		2. Write necessary number of blank rows based on difference between previous time from step 1 and the current time - use datetime.utcnow() for current time
+		2. Write necessary number of blank rows based on difference between previous time from step 1 and the account time now
 		3. For each epic data file: set self.updates_t_array[epic]['PREV'] to the last written time from step 2
 		- Because of step 3, the writer algorithm will fill in any blank rows that are required between finishing the start-up sequence and writing the first data
-		"""		
-		return None
+		"""
+		t_now = datetime.now(self.local_tz).replace(second=0, microsecond=0, tzinfo=None)
+		fname_suffix = "-".join(['', str(t_now.year), str(t_now.month)]) + '.csv'
+		
+		for epic in self.target_epics:
+			ccy   = epic[5:11] #currency code e.g. EURGBP
+			fname = ccy + fname_suffix
+			
+			if path.exists(fname):
+				with open(fname, 'r') as csv_rf:
+					csv_r = list(reader(csv_rf))
+					LUT   = datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
+					m_int = self.handle_tgap(LUT, t_now) #missed intervals
+					if m_int != []:
+						with open(fname, 'a') as csv_wf:
+							csv_w = writer(csv_wf, lineterminator='\n')
+							for mi in m_int:
+								csv_w.writerow([ccy, mi] + ['' for field in self.targ_fields])
+								LUT = mi
+					self.updates_t_array[epic]['PREV'] = LUT
+			else:
+				self.updates_t_array[epic]['PREV'] = t_now
 				
 	def data_stream(self):
 		
@@ -315,6 +372,23 @@ class IG_API():
 			if (datetime.utcnow() - self.login_time).seconds >= self.max_session_time - self.refresh_t_minus:
 				self.logout()
 				self.login()
+				
+				self.refresh_count += 1
+				
+				if comms:
+					if self.refresh_count % 2 == 0: #send status update every 12 hours
+						init_epic = self.target_epics[0]
+						min_t = self.updates_t_array[init_epic]['CURR']
+						price = self.epic_data_array[init_epic][self.targ_fields[0]]
+						
+						for epic in self.target_epics:
+							ut = self.updates_t_array[epic]['CURR']
+							if ut < min_t:
+								min_t = ut
+								price = self.epic_data_array[epic][self.targ_fields[0]]
+								
+						self.send_status_update(subject='%s %s' % (str(min_t), price))
+					
 				return True
 			else:
 				return False
@@ -417,35 +491,25 @@ class IG_API():
 		return None
 
 	
-	
 def	command_line():
 	while True:
-		instruction =	input("{0:-^80}\n".format("'exit' to stop data logger."))
-		if instruction ==	"exit":
-			exit()
+		instruction = input("{0:-^80}\n".format("'exit' to stop data logger."))
+		if instruction == "exit":
+			sys.exit()
 		else:
 			pass
 
-
+#sys.excepthook = ExceptHook
 
 def	main():
 	
 	broker = IG_API()
 	
-	dt_0 = datetime(2019, 7, 12, 20, 31, 0)
-	dt_1 = datetime(2019, 7, 14, 23, 11, 0)
-	t0 = clock()
-	r = broker.handle_tgap(dt_0, dt_1)
-	t1 = clock()
-	print(r)
-	print(t1 - t0)
-	return
+	sys.excepthook = broker.ExceptHook
+	
 	broker.login()
 
 	broker.data_stream()
-	
-	#send notification here
-	#command_line()
 
 	broker.logout()
 	
