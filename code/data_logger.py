@@ -4,7 +4,7 @@ from urllib.request	import urlopen
 from urllib.parse import urlencode
 from csv import	(reader, writer)
 from time import (clock, sleep, time)
-from os	import (path, makedirs)
+from os	import (path, makedirs, listdir)
 import pytz
 from datetime import datetime, timedelta
 from datetime import time as dt_time
@@ -229,6 +229,44 @@ class IG_API():
 					missing_datetimes.append(dt0)
 					
 		return missing_datetimes
+	
+	def write_data(_epic, _data):
+		"""
+		- recurrent function: writes data assigning file name based on datetime of update as 'epic-year-month.csv'
+		- returns LUT (last update time) so when write_data() is called by startup_sequence() it can be used to set self.updates_t_array[epic]['PREV']
+		- schema for _data: [[epic, datetime, BID_OPEN, BID_HIGH, BID_LOW, BID_CLOSE, LTV] * n] where n >= 1
+		"""
+		row_0  = _data.pop(0)
+		t_curr = datetime.strptime(row_0[1], '%Y-%m-%d %H:%M:%S')
+		f_year = str(t_curr.year)  #file year
+		f_mon  = str(t_curr.month) #file month
+		fname  = "-".join([_epic, y_curr, m_curr]) + '.csv'
+		
+		full_path = _epic + '\\' + fname
+		if not path.exists(full_path):
+			write_headers = True
+		else:
+			write_headers = False
+		
+		LUT = t_curr
+		with open(full_path, 'a') as csv_f:
+			csv_w = writer(csv_f, lineterminator='\n')
+			
+			if write_headers:
+				csv_w.writerow(['EPIC', 'DATE_TIME'] + self.targ_fields)
+			
+			csv_w.writerow(row_0)
+			
+			for r in _data[:]: # [:] ensures that _data is modified in-place by calls to _data.remove()
+				t_curr = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
+				if str(t_curr.year) != f_year or str(t_curr.month) != f_mon:
+					return self.write_data(_epic, _data)
+				else:
+					csv_w.writerow(r)
+					LUT = t_curr
+					_data.remove(r)
+					
+		return LUT
 
 	def startup_sequence(self):
 		"""
@@ -239,25 +277,37 @@ class IG_API():
 		"""
 		t_now = datetime.now(self.local_tz).replace(second=0, microsecond=0, tzinfo=None)
 		fname_suffix = "-".join(['', str(t_now.year), str(t_now.month)]) + '.csv'
-		
+
 		for epic in self.target_epics:
 			ccy   = epic[5:11] #currency code e.g. EURGBP
 			fname = ccy + fname_suffix
 			
-			if path.exists(fname):
-				with open(fname, 'r') as csv_rf:
-					csv_r = list(reader(csv_rf))
-					LUT   = datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
-					m_int = self.handle_tgap(LUT, t_now) #missed intervals
-					if m_int != []:
-						with open(fname, 'a') as csv_wf:
-							csv_w = writer(csv_wf, lineterminator='\n')
-							for mi in m_int:
-								csv_w.writerow([ccy, mi] + ['' for field in self.targ_fields])
-								LUT = mi
-					self.updates_t_array[epic]['PREV'] = LUT
+			if not path.exists(ccy):
+				makedirs(ccy)
+				
+			data_files = sorted(listdir(ccy))
+			
+			if fname in data_files:
+				latest_file = ccy + '\\' + fname 	
+				
+			elif data_files != []:
+				latest_file = ccy + '\\' + data_files[-1]
+				
 			else:
 				self.updates_t_array[epic]['PREV'] = t_now
+				return
+			
+			mints = [] #missing intervals
+			with open(latest_file, 'r') as csv_rf:
+				csv_r = list(reader(csv_rf))
+				LUT   = datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
+				mints = self.handle_tgap(LUT, t_now)
+
+			if mints != []:
+				data_array = [[epic, mi] + ['' for field in self.targ_fields] for mi in mints]
+				self.updates_t_array[epic]['PREV'] = self.write_data(epic, data_array)
+			else:
+				self.updates_t_array[epic]['PREV'] = LUT
 				
 	def data_stream(self):
 		
@@ -432,14 +482,19 @@ class IG_API():
 				t_prev = self.updates_t_array[epic]['PREV']
 				t_diff = int((t_curr - t_prev).seconds / (60 * self.interval_val))
 				
+				data_to_write = []
+				data_curr     = [epic[5:11], t_curr]
+				
 				if t_diff == 1:
-					#use previous values if 
+					#use previous values if value still set to '' (as per LS docs)
 					for k, v in self.epic_data_array[epic].items():
 						if v == '':
-							self.epic_data_array[epic][k] = self.prev_data_array[epic][k] 
-							
+							self.epic_data_array[epic][k] = self.prev_data_array[epic][k]
+					
 				elif t_diff > self.interval_val:
-					handle_tgap(t_prev, t_curr)
+					mints = handle_tgap(t_prev, t_curr)
+					for mi in mints:
+						data_to_write.append([epic, mi] + ['' for field in self.targ_fields])
 					
 				else:
 					#log error
@@ -448,7 +503,9 @@ class IG_API():
 				
 				if epic_id == 0:
 					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic]) #debug
-				# WRITE CURRENT OHLCV DATA
+				
+				data_to_write.append([epic, t_curr] + [self.epic_data_array[epic][field] for field in self.targ_fields])
+				self.write_data(epic, data_to_write)
 				
 				on_loop_reset(t_curr)
 				
