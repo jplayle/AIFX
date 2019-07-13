@@ -24,7 +24,7 @@ sun = str(today - timedelta(idx))
 for pair in Pairs:
     with open(pair+"-"+sun+".csv", "w") as file:
         w = csv.writer(file)
-        headers = [pair,"Date&Time"]+targ_fields
+        headers = ["EPIC","DATE&TIME"]+targ_fields
         w.writerow(headers)
         
         row = [pair]+[datetime.today()]
