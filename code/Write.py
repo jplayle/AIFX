@@ -13,6 +13,10 @@ for epic in MARKET_epics:
     if epic[5:11] not in Pairs:
         Pairs[epic[5:11]]={"BID_OPEN":0,"BID_HIGH":0,"BID_LOW":0,"BID_CLOSE":0,"LTV":0}
 
+#When implementing into master script make below changes:
+#self.updates_t_array[epic][‘CURR’]=datetime.today()
+#self.epic_data_array = Pairs
+        
 today = date.today()
 idx = (today.weekday() + 1) % 7
 sun = str(today - timedelta(idx))
