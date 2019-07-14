@@ -8,16 +8,13 @@ from os	import (path, makedirs, listdir)
 import pytz
 from datetime import datetime, timedelta
 from datetime import time as dt_time
-#from calendar import weekday
-#from threading import Thread
 from getpass import getuser, getpass
 from json import dumps
 import sys
 from socket import timeout as socket_timeout_exception
-#import numpy as	np
 import traceback
-import smtplib
-import email
+from smtplib import SMTP
+from email import message_from_string
 
 """
 NOTES etc
@@ -80,9 +77,10 @@ class IG_API():
 	local_tz                 = pytz.timezone("Europe/London") #set timezone string to be the same as the broker account - data timestamps are then handled accordingly
 
 	def __init__(self, comms=False):
+		self.comms = comms
 		status_sendr_addr = 'joshplayle@hotmail.com'
 		status_recipients = ['joshplayle@hotmail.com']#, 'matthew.a.calder@googlemail.com']
-		if comms:
+		if self.comms:
 			status_sendr_pswd = getpass(prompt='Enter password for emails: ')
 		
 		self.XST = ''
@@ -112,11 +110,55 @@ class IG_API():
 									  "LS_adapter_set": "DEFAULT",
 									  "LS_keepalive_millis": self.keepalive,
 									  "LS_content_length":   self.content_len}
+		if self.comms:
+			sys.excepthook = self.ExceptHook
+		self.startup_sequence()
 		
 	def ExceptHook(self, _type, value, tb):
 		tb_str = "".join(traceback.format_exception(_type, value, tb))
 		self.send_status_update(subject='DATA LOGGER DOWN - AIFX', message=tb_str)
 
+	def startup_sequence(self):
+		"""
+		1. Check if data files exist and retrieve previous update time from the last row if they do
+		2. Write necessary number of blank rows based on difference between previous time from step 1 and the account time now
+		3. For each epic data file: set self.updates_t_array[epic]['PREV'] to the last written time from step 2
+		- Because of step 3, the writer algorithm will fill in any blank rows that are required between finishing the start-up sequence and writing the first data
+		"""
+		t_now = datetime.now(self.local_tz).replace(second=0, microsecond=0, tzinfo=None)
+		fname_suffix = "-".join(['', str(t_now.year), str(t_now.month)]) + '.csv'
+		
+		for epic in self.target_epics:
+			ccy   = epic[5:11] #currency code e.g. EURGBP
+			fname = ccy + fname_suffix
+			
+			if not path.exists(ccy):
+				makedirs(ccy)
+				
+			data_files = sorted(listdir(ccy))
+
+			if fname in data_files:
+				latest_file = ccy + '/' + fname 	
+				
+			elif data_files != []:
+				latest_file = ccy + '/' + data_files[-1]
+				
+			else:
+				self.updates_t_array[epic]['PREV'] = t_now - timedelta(minutes=self.interval_val)
+				continue
+			
+			mints = [] #missing intervals
+			with open(latest_file, 'r') as csv_rf:
+				csv_r = list(reader(csv_rf))
+				LUT   = datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
+				mints = self.handle_tgap(LUT, t_now)
+				
+			if mints != []:
+				data_array = [[ccy, mi] + ['' for field in self.targ_fields] for mi in mints]
+				self.updates_t_array[epic]['PREV'] = self.write_data(epic[5:11], data_array)
+			else:
+				self.updates_t_array[epic]['PREV'] = LUT - timedelta(minutes=self.interval_val)
+		
 	def login(self):
 		# login to IG demo API and retrieve security tokens, session ID, session server details etc
 		
@@ -165,15 +207,15 @@ class IG_API():
 		"""
 		- sends an email from self.status_sendr_addr to all addresses in self.status_recipients
 		"""
-		if comms: #toggle comms on and off for dev when many exceptions may be thrown
+		if self.comms: #toggle comms on and off for dev when many exceptions may be thrown
 			for x in range(30):
 				try:
-					email_server = smtplib.SMTP('smtp.live.com', 587)
+					email_server = SMTP('smtp.live.com', 587)
 					email_server.ehlo()
 					email_server.starttls()
 					email_server.login(self.status_sendr_addr, self.status_sendr_pswd)
 
-					msg = email.message_from_string(message)
+					msg = message_from_string(message)
 					msg['From']    = self.status_sendr_addr
 					msg['Subject'] = subject
 
@@ -182,7 +224,7 @@ class IG_API():
 						email_server.sendmail(self.status_sendr_addr, recip_addr, msg.as_string())
 
 					email_server.quit()
-					break
+					return
 				except ConnectionError:
 					sleep(1)
 					continue
@@ -225,24 +267,24 @@ class IG_API():
 					
 			elif w_day == 6: #sunday - check market closure
 				iday_time = dt_time(utc_t.hour, utc_t.minute) #intra-day time, shifted to utc
-				if iday_time > self.FX_market_global_open_t:
+				if iday_time >= self.FX_market_global_open_t:
 					missing_datetimes.append(dt0)
 					
 		return missing_datetimes
 	
-	def write_data(_epic, _data):
+	def write_data(self, _epic_ccy, _data):
 		"""
 		- recurrent function: writes data assigning file name based on datetime of update as 'epic-year-month.csv'
 		- returns LUT (last update time) so when write_data() is called by startup_sequence() it can be used to set self.updates_t_array[epic]['PREV']
 		- schema for _data: [[epic, datetime, BID_OPEN, BID_HIGH, BID_LOW, BID_CLOSE, LTV] * n] where n >= 1
 		"""
 		row_0  = _data.pop(0)
-		t_curr = datetime.strptime(row_0[1], '%Y-%m-%d %H:%M:%S')
+		t_curr = row_0[1]
 		f_year = str(t_curr.year)  #file year
 		f_mon  = str(t_curr.month) #file month
-		fname  = "-".join([_epic, y_curr, m_curr]) + '.csv'
+		fname  = "-".join([_epic_ccy, f_year, f_mon]) + '.csv'
 		
-		full_path = _epic + '\\' + fname
+		full_path = _epic_ccy + '/' + fname
 		if not path.exists(full_path):
 			write_headers = True
 		else:
@@ -258,56 +300,15 @@ class IG_API():
 			csv_w.writerow(row_0)
 			
 			for r in _data[:]: # [:] ensures that _data is modified in-place by calls to _data.remove()
-				t_curr = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
+				t_curr = r[1]
 				if str(t_curr.year) != f_year or str(t_curr.month) != f_mon:
-					return self.write_data(_epic, _data)
+					return self.write_data(_epic_ccy, _data)
 				else:
 					csv_w.writerow(r)
 					LUT = t_curr
 					_data.remove(r)
 					
 		return LUT
-
-	def startup_sequence(self):
-		"""
-		1. Check if data files exist and retrieve previous update time from the last row if they do
-		2. Write necessary number of blank rows based on difference between previous time from step 1 and the account time now
-		3. For each epic data file: set self.updates_t_array[epic]['PREV'] to the last written time from step 2
-		- Because of step 3, the writer algorithm will fill in any blank rows that are required between finishing the start-up sequence and writing the first data
-		"""
-		t_now = datetime.now(self.local_tz).replace(second=0, microsecond=0, tzinfo=None)
-		fname_suffix = "-".join(['', str(t_now.year), str(t_now.month)]) + '.csv'
-
-		for epic in self.target_epics:
-			ccy   = epic[5:11] #currency code e.g. EURGBP
-			fname = ccy + fname_suffix
-			
-			if not path.exists(ccy):
-				makedirs(ccy)
-				
-			data_files = sorted(listdir(ccy))
-			
-			if fname in data_files:
-				latest_file = ccy + '\\' + fname 	
-				
-			elif data_files != []:
-				latest_file = ccy + '\\' + data_files[-1]
-				
-			else:
-				self.updates_t_array[epic]['PREV'] = t_now
-				return
-			
-			mints = [] #missing intervals
-			with open(latest_file, 'r') as csv_rf:
-				csv_r = list(reader(csv_rf))
-				LUT   = datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
-				mints = self.handle_tgap(LUT, t_now)
-
-			if mints != []:
-				data_array = [[epic, mi] + ['' for field in self.targ_fields] for mi in mints]
-				self.updates_t_array[epic]['PREV'] = self.write_data(epic, data_array)
-			else:
-				self.updates_t_array[epic]['PREV'] = LUT
 				
 	def data_stream(self):
 		
@@ -388,8 +389,6 @@ class IG_API():
 			UTM    = data.pop(-1)
 			if UTM not in self.void_chars:
 				self.updates_t_array[_epic]['CURR'] = datetime.fromtimestamp(int(UTM) / 1000.0)
-				if self.updates_t_array[_epic]['PREV'] == None: #dev: previous update time needs to be queried from the files on start-up sequence
-					self.updates_t_array[_epic]['PREV'] = self.updates_t_array[_epic]['CURR'] - timedelta(minutes=self.interval_val)
 
 			x = 0
 			for d in data:
@@ -477,35 +476,37 @@ class IG_API():
 			epic     = self.target_epics[epic_id]
 			CONS_END = process_data(epic, data)
 			
-			if CONS_END == "1": #end of candle - write data				
+			if CONS_END == "1": #end of candle - write data	
+				data_to_write = []
+				epic_ccy      = epic[5:11]
+				
 				t_curr = self.updates_t_array[epic]['CURR']
 				t_prev = self.updates_t_array[epic]['PREV']
-				t_diff = int((t_curr - t_prev).seconds / (60 * self.interval_val))
 				
-				data_to_write = []
-				data_curr     = [epic[5:11], t_curr]
+				if t_prev >= t_curr:
+					#log error
+					self.epic_data_array[epic] = {field: '' for field in self.targ_fields}
+					self.prev_data_array[epic] = {field: '' for field in self.targ_fields}
+					continue
+				else:
+					t_diff = int((t_curr - t_prev).seconds / (60 * self.interval_val))
 				
 				if t_diff == 1:
 					#use previous values if value still set to '' (as per LS docs)
 					for k, v in self.epic_data_array[epic].items():
 						if v == '':
 							self.epic_data_array[epic][k] = self.prev_data_array[epic][k]
-					
 				elif t_diff > self.interval_val:
-					mints = handle_tgap(t_prev, t_curr)
+					mints = self.handle_tgap(t_prev, t_curr)
 					for mi in mints:
-						data_to_write.append([epic, mi] + ['' for field in self.targ_fields])
-					
-				else:
-					#log error
-					self.epic_data_array[epic] = {field: '' for field in self.targ_fields}
-					continue #don't write in case of server sending erroneous messages that are in the past
+						data_to_write.append([epic_ccy, mi] + ['' for field in self.targ_fields])
 				
 				if epic_id == 0:
 					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic]) #debug
 				
-				data_to_write.append([epic, t_curr] + [self.epic_data_array[epic][field] for field in self.targ_fields])
-				self.write_data(epic, data_to_write)
+				data_to_write.append([epic_ccy, t_curr] + [self.epic_data_array[epic][field] for field in self.targ_fields])
+
+				self.write_data(epic_ccy, data_to_write)
 				
 				on_loop_reset(t_curr)
 				
@@ -514,56 +515,12 @@ class IG_API():
 				if new_tokens:
 					reset_stream()
 
-	def price_history(self, epic):
-		hdrs = self.headers
-		hdrs['VERSION'] =	'3'
 
-		time_now	= datetime.utcnow()
-		time_then	= time_now - datetime.timedelta(hours=(self.TT / 3600))
-		time_now	= str(time_now).replace(" ",	"T")[:19].replace(":", r"%3A")
-		time_then	= str(time_then).replace(" ", "T")[:19].replace(":", r"%3A")
-
-		max_points = str(floor(10000 / len(self.MARKET_epics))) #	Limit =	10000 data points per week 
-		page_size  = max_points
-		r = get(self.r00t	+ "/prices/" + epic	+ "?resolution=MINUTE&from=" + time_then + "&to=" +	time_now + "&max=" + max_points	+ "&pageSize=" + page_size,	headers=hdrs).text
-		r = eval(r.replace("null", '""').replace("true", '"True"').replace("false", '"False"'))
-		
-		ask_a	= np.array([])
-		for x	in r['prices']:
-			ask_a = np.append(ask_a, x['closePrice']['ask'])
-
-		return ask_a
-
-	def current_price(self, epic):
-		results =	get(self.r00t +	"/markets/"	+ epic,	headers=self.headers, data=self.creds).text
-		results =	eval(results.replace("true", "True").replace("false", "False").replace("null", "None"))
-		price	= float(results['snapshot']['offer'])
-		bid =	float(results['snapshot']['bid'])
-		return [price, bid]
-
-	def patch_data(self):
-		"""
-		- Details tbc.
-		"""
-		return None
-
-	
-def	command_line():
-	while True:
-		instruction = input("{0:-^80}\n".format("'exit' to stop data logger."))
-		if instruction == "exit":
-			sys.exit()
-		else:
-			pass
-
-#sys.excepthook = ExceptHook
 
 def	main():
-	
+
 	broker = IG_API()
-	
-	sys.excepthook = broker.ExceptHook
-	
+
 	broker.login()
 
 	broker.data_stream()
