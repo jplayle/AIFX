@@ -8,7 +8,6 @@ from os	import (path, makedirs, listdir)
 import pytz
 from datetime import datetime, timedelta
 from datetime import time as dt_time
-from getpass import getuser, getpass
 from json import dumps
 import sys
 from socket import timeout as socket_timeout_exception
@@ -24,11 +23,22 @@ DEV
 """
 
 
+args = {'comms': False}
+for arg in sys.argv:
+	if '=' in arg:
+		a = arg.split('=')
+		if a[0] == 'comms':
+			comms_val = bool(a[0])
+			args['comms'] = comms_val
+			
+
 class IG_API():
 	
-	target_epics =	["CS.D.GBPUSD.CFD.IP", "CS.D.USDJPY.CFD.IP", "CS.D.EURGBP.CFD.IP", "CS.D.EURJPY.CFD.IP", "CS.D.EURUSD.CFD.IP", "CS.D.GBPJPY.CFD.IP",	\
-					 "CS.D.AUDJPY.CFD.IP", "CS.D.AUDUSD.CFD.IP", "CS.D.AUDCAD.CFD.IP", "CS.D.USDCAD.CFD.IP", "CS.D.NZDUSD.CFD.IP", "CS.D.NZDJPY.CFD.IP",	\
-					 "CS.D.AUDEUR.CFD.IP", "CS.D.AUDGBP.CFD.IP", "CS.D.CADJPY.CFD.IP", "CS.D.NZDGBP.CFD.IP", "CS.D.NZDEUR.CFD.IP", "CS.D.NZDCAD.CFD.IP"]
+	crypto_epics = ["CS.D.BITCOIN.CFD.IP", "CS.D.ETHUSD.CFD.IP", "CS.D.LTCUSD.CFD.IP", "CS.D.XRPUSD.CFD.IP"]
+	fiat_epics   = ["CS.D.GBPUSD.CFD.IP", "CS.D.USDJPY.CFD.IP", "CS.D.EURGBP.CFD.IP", "CS.D.EURJPY.CFD.IP", "CS.D.EURUSD.CFD.IP", "CS.D.GBPJPY.CFD.IP",	\
+					"CS.D.AUDJPY.CFD.IP", "CS.D.AUDUSD.CFD.IP", "CS.D.AUDCAD.CFD.IP", "CS.D.USDCAD.CFD.IP", "CS.D.NZDUSD.CFD.IP", "CS.D.NZDJPY.CFD.IP",	\
+					"CS.D.AUDEUR.CFD.IP", "CS.D.AUDGBP.CFD.IP", "CS.D.CADJPY.CFD.IP", "CS.D.NZDGBP.CFD.IP", "CS.D.NZDEUR.CFD.IP", "CS.D.NZDCAD.CFD.IP"]
+	target_epics = fiat_epics + crypto_epics
 	
 	sub          = "CHART"
 	mode         = "MERGE"
@@ -78,10 +88,9 @@ class IG_API():
 
 	def __init__(self, comms=False):
 		self.comms = comms
-		status_sendr_addr = 'joshplayle@hotmail.com'
-		status_recipients = ['joshplayle@hotmail.com']#, 'matthew.a.calder@googlemail.com']
-		if self.comms:
-			status_sendr_pswd = getpass(prompt='Enter password for emails: ')
+		self.status_sendr_addr = 'ai4fx@hotmail.com'
+		self.status_sendr_pswd = 'Edge540p1enxt'
+		self.status_recipients = ['joshplayle@hotmail.com']#, 'matthew.a.calder@googlemail.com']
 		
 		self.XST = ''
 		self.CST = ''
@@ -501,9 +510,6 @@ class IG_API():
 					for mi in mints:
 						data_to_write.append([epic_ccy, mi] + ['' for field in self.targ_fields])
 				
-				if epic_id == 0:
-					print(self.updates_t_array[epic]['CURR'], self.epic_data_array[epic]) #debug
-				
 				data_to_write.append([epic_ccy, t_curr] + [self.epic_data_array[epic][field] for field in self.targ_fields])
 
 				self.write_data(epic_ccy, data_to_write)
@@ -519,8 +525,8 @@ class IG_API():
 
 def	main():
 
-	broker = IG_API()
-
+	broker = IG_API(comms=args['comms'])
+	
 	broker.login()
 
 	broker.data_stream()
