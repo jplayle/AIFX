@@ -1,0 +1,45 @@
+Git Tutorial for Beginners: Command Line Fundamentals
+https://www.youtube.com/watch?v=HVsySz-h9r4
+
+TYPICAL WORKFLOW
+Create new branch:
+git branch NAME-OF-BRANCH
+
+Start work on branch:
+git checkout NAME-OF-BRANCH
+
+Make changes on local repo: 
+(EDIT FILES,CREATE NEW/DELETE FILES ETC)
+
+Check how local repo compares to master:
+git diff
+
+Get status of master repo to confirm modifications:
+git status
+
+Add any changes on local repo to "staging area":
+git add -A
+
+Comit changes with added message to explain changes:
+git commit -m "MESSAGE HERE"
+
+Push branch to remote repo: 
+git push -u origin NAME-OF-BRANCH
+
+Review changes:
+UNDERGO TESTS TO ENSURE UPDATES RUN WELL
+
+Change to master branch:
+git checkout master
+
+Pull master repo to ensure most up-to-date repo (including changes made by other users): 
+git pull origin master
+
+Merge working branch with master:
+git merge NAME-OF-BRANCH
+
+Push local changes to master repo:
+git push origin master
+
+Delete working branch:
+git -d NAME-OF-BRANCH
