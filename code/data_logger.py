@@ -433,7 +433,7 @@ class IG_API():
 				
 				self.refresh_count += 1
 				
-				if comms:
+				if self.comms:
 					if self.refresh_count % 2 == 0: #send status update every 12 hours
 						init_epic = self.target_epics[0]
 						min_t = self.updates_t_array[init_epic]['CURR']
