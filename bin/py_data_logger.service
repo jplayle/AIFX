@@ -1,0 +1,6 @@
+[Unit]
+Description=Run data_logger.py on startup.
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/ubuntu/data_logger.py comms=True
