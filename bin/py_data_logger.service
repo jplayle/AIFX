@@ -1,6 +1,10 @@
+[Install]
+RequiredBy=multi-user.target
+
 [Unit]
 Description=Run data_logger.py on startup.
 
 [Service]
 Type=simple
+WorkingDirectory=/home/ubuntu
 ExecStart=/usr/bin/python3 /home/ubuntu/data_logger.py comms=True
