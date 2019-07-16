@@ -2,3 +2,5 @@ ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com
 
 SSH/SCP via PuTTY on Windows:
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/putty.html?icmpid=docs_ec2_console
+
+pscp -i "C:\Git\AIFX\bin\AIFX_key.ppk" "C:\Git\AIFX\code\data_logger.py" "ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/data_logger.py"
