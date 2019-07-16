@@ -1,0 +1,2 @@
+SSH/SCP via PuTTY on Windows:
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/putty.html?icmpid=docs_ec2_console
