@@ -2,10 +2,10 @@ Git Tutorial for Beginners: Command Line Fundamentals
 https://www.youtube.com/watch?v=HVsySz-h9r4
 
 TYPICAL WORKFLOW
-Create new branch:
+Create new branch:  (NOT REQUIRED IF WORKING DIRECTLY ON MASTER BRANCH)
 git branch NAME-OF-BRANCH
 
-Start work on branch:
+Start work on branch:  (NOT REQUIRED IF WORKING DIRECTLY ON MASTER BRANCH)
 git checkout NAME-OF-BRANCH
 
 Make changes on local repo: 
@@ -23,13 +23,13 @@ git add -A
 Comit changes with added message to explain changes:
 git commit -m "MESSAGE HERE"
 
-Push branch to remote repo: 
+Push branch to remote repo: (NOT REQUIRED IF WORKING DIRECTLY ON MASTER BRANCH)
 git push -u origin NAME-OF-BRANCH
 
 Review changes:
 UNDERGO TESTS TO ENSURE UPDATES RUN WELL
 
-Change to master branch:
+Change to master branch:  (NOT REQUIRED IF WORKING DIRECTLY ON MASTER BRANCH)
 git checkout master
 
 Pull master repo to ensure most up-to-date repo (including changes made by other users): 
@@ -41,13 +41,13 @@ press "esc"
 write ":wq"
 then press enter)
 
-Merge working branch with master:
+Merge working branch with master:  (NOT REQUIRED IF WORKING DIRECTLY ON MASTER BRANCH)
 git merge NAME-OF-BRANCH
 
 Push local changes to master repo:
 git push origin master
 
-Delete working branch:
+Delete working branch:  (NOT REQUIRED IF WORKING DIRECTLY ON MASTER BRANCH)
 git -d NAME-OF-BRANCH
 
 Update only a single file from remote:
