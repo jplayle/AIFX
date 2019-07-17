@@ -82,15 +82,14 @@ class IG_API():
 		prev_data_array[epic] = {field: '' for field in targ_fields}
 	updates_t_array           = {epic: {'PREV': None, 'CURR': None} for epic in target_epics} #Last Update Time - query from start-up sequence in later versions
 	
-	FX_market_global_open_t  = dt_time(22) #open hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc) 
+	FX_market_global_open_t  = dt_time(20) #open hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc) 
 	FX_market_global_close_t = dt_time(21) #close hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc)
-	local_tz                 = pytz.timezone("Europe/London") #set timezone string to be the same as the broker account - data timestamps are then handled accordingly
 
 	def __init__(self, comms=False):
 		self.comms = comms
 		self.status_sendr_addr = 'ai4fx@hotmail.com'
 		self.status_sendr_pswd = 'Edge540p1enxt'
-		self.status_recipients = ['joshplayle@hotmail.com']#, 'matthew.a.calder@googlemail.com']
+		self.status_recipients = ['joshplayle@hotmail.com', 'matthew.a.calder@googlemail.com']
 		
 		self.XST = ''
 		self.CST = ''
@@ -134,7 +133,7 @@ class IG_API():
 		3. For each epic data file: set self.updates_t_array[epic]['PREV'] to the last written time from step 2
 		- Because of step 3, the writer algorithm will fill in any blank rows that are required between finishing the start-up sequence and writing the first data
 		"""
-		t_now = datetime.now(self.local_tz).replace(second=0, microsecond=0, tzinfo=None)
+		t_now = datetime.utcnow()
 		fname_suffix = "-".join(['', str(t_now.year), str(t_now.month)]) + '.csv'
 		
 		for epic in self.target_epics:
@@ -160,7 +159,7 @@ class IG_API():
 			with open(latest_file, 'r') as csv_rf:
 				csv_r = list(reader(csv_rf))
 				LUT   = datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
-				mints = self.handle_tgap(LUT, t_now)
+				mints = self.handle_tgap(LUT, t_now, epic)
 				
 			if mints != []:
 				data_array = [[ccy, mi] + ['' for field in self.targ_fields] for mi in mints]
@@ -238,7 +237,7 @@ class IG_API():
 					sleep(1)
 					continue
 		
-	def handle_tgap(self, dt0, dt1):
+	def handle_tgap(self, dt0, dt1, _epic=''):
 		"""
 		- return missing datetimes at self.interval separation between two datetime objects, excluding market closures
 		- just an initial brute force iterative method - faster method possible by doing time diffs (although on testing this method proves more than adequate)
@@ -247,6 +246,7 @@ class IG_API():
 		"""
 		def utc_delta(local_dt):
 			"""
+			- DISCONTINUED: no longer required as server timestamps are in UTC but useful code so leaving it here for potential future use. 
 			- returns number of hours difference between a given datetime+timezone and utc
 			- required because data timestamps are in 'account local time' which may be not be same as utc due to different timezone, DST etc
 			"""
@@ -262,20 +262,22 @@ class IG_API():
 		missing_datetimes = []
 		
 		for m in range(1, n_mins):
-			dt0  += timedelta(minutes=self.interval_val) 
-			utc_t = dt0 - timedelta(hours=utc_delta(dt0)) #timestamp from server shifted to utc for comparison to market hours which are in utc
-			w_day = utc_t.weekday()
+			dt0  += timedelta(minutes=self.interval_val)
+			w_day = dt0.weekday()
 			
-			if w_day not in [4, 5, 6]: #not friday, saturday or sunday
+			if _epic in self.crypto_epics:
+				missing_datetimes.append(dt0)
+				
+			elif w_day not in [4, 5, 6]: #not friday, saturday or sunday
 				missing_datetimes.append(dt0)
 				
 			elif w_day == 4: #friday - check market closure
-				iday_time = dt_time(utc_t.hour, utc_t.minute) #intra-day time, shifted to utc
+				iday_time = dt_time(dt0.hour, dt0.minute) #intra-day time, shifted to utc
 				if iday_time < self.FX_market_global_close_t:
 					missing_datetimes.append(dt0)
 					
 			elif w_day == 6: #sunday - check market closure
-				iday_time = dt_time(utc_t.hour, utc_t.minute) #intra-day time, shifted to utc
+				iday_time = dt_time(dt0, dt0.minute) #intra-day time, shifted to utc
 				if iday_time >= self.FX_market_global_open_t:
 					missing_datetimes.append(dt0)
 					
@@ -392,6 +394,8 @@ class IG_API():
 					break
 				else:
 					connect()
+					
+			self.subscribe_time = datetime.utcnow()
 				
 		def process_data(_epic, _data):
 			IS_END = data.pop(-1)
@@ -492,7 +496,7 @@ class IG_API():
 				t_curr = self.updates_t_array[epic]['CURR']
 				t_prev = self.updates_t_array[epic]['PREV']
 				
-				if t_prev >= t_curr:
+				if t_prev > t_curr:
 					#log error
 					self.epic_data_array[epic] = {field: '' for field in self.targ_fields}
 					self.prev_data_array[epic] = {field: '' for field in self.targ_fields}
@@ -506,7 +510,7 @@ class IG_API():
 						if v == '':
 							self.epic_data_array[epic][k] = self.prev_data_array[epic][k]
 				elif t_diff > self.interval_val:
-					mints = self.handle_tgap(t_prev, t_curr)
+					mints = self.handle_tgap(t_prev, t_curr, epic)
 					for mi in mints:
 						data_to_write.append([epic_ccy, mi] + ['' for field in self.targ_fields])
 				

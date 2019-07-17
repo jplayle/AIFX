@@ -43,3 +43,8 @@ git push origin master
 
 Delete working branch:
 git -d NAME-OF-BRANCH
+
+Update only a single file from remote:
+git fetch
+git checkout FETCH_HEAD -- <file_name>
+(worked when run from location of target file).
