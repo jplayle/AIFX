@@ -34,6 +34,12 @@ git checkout master
 
 Pull master repo to ensure most up-to-date repo (including changes made by other users): 
 git pull origin master
+(IF ASKED TO SUPPLY REASON:
+press "i"
+write your merge message
+press "esc"
+write ":wq"
+then press enter)
 
 Merge working branch with master:
 git merge NAME-OF-BRANCH
