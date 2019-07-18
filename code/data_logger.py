@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from csv import	(reader, writer)
 from time import (clock, sleep, time)
 from os	import (path, makedirs, listdir)
-import pytz
+#import pytz
 from datetime import datetime, timedelta
 from datetime import time as dt_time
 from json import dumps
@@ -401,7 +401,7 @@ class IG_API():
 			IS_END = data.pop(-1)
 			UTM    = data.pop(-1)
 			if UTM not in self.void_chars:
-				self.updates_t_array[_epic]['CURR'] = datetime.fromtimestamp(int(UTM) / 1000.0)
+				self.updates_t_array[_epic]['CURR'] = datetime.utcfromtimestamp(int(UTM) / 1000.0)
 
 			x = 0
 			for d in data:
@@ -502,7 +502,7 @@ class IG_API():
 					self.prev_data_array[epic] = {field: '' for field in self.targ_fields}
 					continue
 				else:
-					t_diff = int((t_curr - t_prev).seconds / (60 * self.interval_val))
+					t_diff = int((t_curr - t_prev).total_seconds() / (60 * self.interval_val))
 				
 				if t_diff == 1:
 					#use previous values if value still set to '' (as per LS docs)
