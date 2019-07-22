@@ -68,7 +68,7 @@ class IG_API():
 	ControlAddress     = ''
 	SessionTime        = ''
 	connection_timeout = int(int(keepalive) * 0.9 / 1000) #connection loss - server connection must timeout to be reset if nothing received after this time (allow 10% head room for good measure)
-	max_session_time   = 120 #6 * 3600 #6hrs, as per IG API docs - new security tokens will be obtained after this time (logout, login again)
+	max_session_time   = 6 * 3600 #6hrs, as per IG API docs - new security tokens will be obtained after this time (logout, login again)
 	refresh_t_minus    = max_session_time * 0.01 #refresh when session time reaches 99% of maximum (VAL % 60 == 0)
 	refresh_count      = 0
 	connection_path    = "/lightstreamer/create_session.txt"
