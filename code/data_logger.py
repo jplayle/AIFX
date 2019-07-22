@@ -68,8 +68,8 @@ class IG_API():
 	ControlAddress     = ''
 	SessionTime        = ''
 	connection_timeout = int(int(keepalive) * 0.9 / 1000) #connection loss - server connection must timeout to be reset if nothing received after this time (allow 10% head room for good measure)
-	max_session_time   = 6 * 3600 #6hrs, as per IG API docs - new security tokens will be obtained after this time (logout, login again)
-	refresh_t_minus    = max_session_time * 0.01 #refresh when session time reaches 99% of maximum
+	max_session_time   = 120 #6 * 3600 #6hrs, as per IG API docs - new security tokens will be obtained after this time (logout, login again)
+	refresh_t_minus    = max_session_time * 0.01 #refresh when session time reaches 99% of maximum (VAL % 60 == 0)
 	refresh_count      = 0
 	connection_path    = "/lightstreamer/create_session.txt"
 	binding_path	   = "/lightstreamer/bind_session.txt"
@@ -322,6 +322,10 @@ class IG_API():
 		return LUT
 				
 	def data_stream(self):
+	
+		total_epics = len(self.target_epics)
+		write_count = 0
+		new_tokens  = False
 		
 		def connect():
 			while True:
@@ -471,13 +475,11 @@ class IG_API():
 					bind()
 					continue
 				elif 'END' in pkt:
-					print('END', pkt)
 					#log error/end reason
 					sleep(3) #LS docs state not recommended to attempt re-connect 'immediately' - exact time unspecified
 					reset_stream()
 					continue
 				else:
-					print('err', pkt)
 					reset_stream()
 			except socket_timeout_exception:
 				reset_stream()
@@ -521,9 +523,14 @@ class IG_API():
 				on_loop_reset(t_curr)
 				
 				# check for session refresh
-				new_tokens = sy_token_handler()
+				if not new_tokens:
+					new_tokens = sy_token_handler()
 				if new_tokens:
-					reset_stream()
+					write_count += 1
+					if write_count == total_epics:
+						reset_stream()
+						new_tokens  = False
+						write_count = 0
 
 
 
