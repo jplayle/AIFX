@@ -277,7 +277,7 @@ class IG_API():
 					missing_datetimes.append(dt0)
 					
 			elif w_day == 6: #sunday - check market closure
-				iday_time = dt_time(dt0, dt0.minute) #intra-day time, shifted to utc
+				iday_time = dt_time(dt0.hour, dt0.minute) #intra-day time, shifted to utc
 				if iday_time >= self.FX_market_global_open_t:
 					missing_datetimes.append(dt0)
 					
