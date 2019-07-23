@@ -14,6 +14,9 @@ from keras.callbacks import Callback
 from sklearn.preprocessing import MinMaxScaler
 
 
+def extract_training_set_timestep(data_file=''):
+	return int(data_file.split("_")[-1].replace('.csv', ''))
+
 class LossHistory(Callback):
 	# Keras callback object for logging loss history during training.
 	# There is only 1 validation loss per epoch.
@@ -36,13 +39,14 @@ class TimeHistory(Callback):
 		self.train_start = clock()
 		
 		
-def get_data(src, price_index=1):
+def get_data(src, price_index=1, headers=False):
 	# src: relative path to .csv file containing data.
 	# Return type: list, data is strings as found in csv.
 	with open(src, 'r') as csv_f:
 		csv_r = reader(csv_f)
+		if headers:
+			csv_r.__next__()
 		return [[r[price_index]] for r in csv_r]
-	
 	
 def shape_training_data(data, window=5, increment=1):
 	# data:      numpy ndarray of normalised/scaled data points for training on.
@@ -62,25 +66,23 @@ def shape_training_data(data, window=5, increment=1):
 	return (_X, _y)
 	
 	
-def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2):
-	loss_algo = 'mse'
-	optimize_algo = 'adam'
+def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, loss_algo='mse', optimizer_algo='adam'):
 
 	regressor = Sequential()
 
-	regressor.add(LSTM(units = units, return_sequences = True, input_shape = in_shape))
+	regressor.add(LSTM(units=units, return_sequences=True, input_shape=in_shape))
 	regressor.add(Dropout(dropout))
 	
 	for l in range(deep_layers):
-		regressor.add(LSTM(units = units, return_sequences = True))
+		regressor.add(LSTM(units=units, return_sequences=True))
 		regressor.add(Dropout(dropout))
 
-	regressor.add(LSTM(units = units))
+	regressor.add(LSTM(units=units))
 	regressor.add(Dropout(dropout))
 
-	regressor.add(Dense(units = 1))
+	regressor.add(Dense(units=1))
 
-	regressor.compile(optimizer = optimize_algo, loss = loss_algo)
+	regressor.compile(optimizer=optimizer_algo, loss=loss_algo)
 	
 	return regressor
 
