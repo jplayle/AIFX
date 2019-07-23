@@ -1,10 +1,8 @@
 """
-DEV/TEST:
-	- Effect of raw data scaling method and whether to use fit_transform or just transform on the test data set
-	- Batch size sensitivity
-	- Test different optimisers and/or loss functions
-	- Check under/over-fit of model
-	- Number of time-steps vs number of epochs
+NOTES
+- observe training data folder structure & file naming
+- params: option to get batch params
+
 """
 
 print("-- SLTM Neural Network: Forex training and testing environment.")

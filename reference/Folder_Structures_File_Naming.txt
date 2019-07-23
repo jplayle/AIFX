@@ -1,0 +1,28 @@
+TRAINING DATA
+
+root_data_dir = path to data sources, '../data' by default (relative path from code folder).
+Any data under root_data_dir must follow folder structure and file naming convention described here.
+root_data_dir can be different as long as previous point is adhered to. 
+
+*Data source*
+	+ Currency Code
+		+ <Currency Code>_<start date>_<end date>_<timestep>.csv
+
+Data source: name of data provider e.g. TrueFX, Dukascopy, ForexTester etc
+Dates: format of YYYYMMDD for later conversion to datetime object.
+timestep: in seconds.
+
+e.g.
+Dukascopy
+	+ GBPUSD
+		+ GBPUSD_20090101_20190101_3600.csv
+=
+root_data_dir/Dukascopy/GBPUSD/GBPUSD_20090101_20190101_3600.csv
+
+***
+
+TESTING RESULTS
+results_dir = '../testing/results/' by default (relative path from code folder).
+
+file_name = training_results_x.csv 
+results_file_db = csv file of results files showing which datasets they were trained on and which params files were used.

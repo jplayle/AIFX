@@ -17,8 +17,13 @@ else:
 	print('- No parameter file specified.')
 	exit()
 
+	
+	
 # VARIABLES
+data_root_dir = '../data/'
 training_data_src = r"../data/GBPUSD/GBPUSD_3600.csv"
+results_dir = '../testing/results/'
+
 
 			
 def main(param_file_path):
@@ -63,7 +68,8 @@ def main(param_file_path):
 			back_props = int(len(X_train) * (1-val_split) / batch_size) * epochs
 			
 			result = [deep_layers, units, dropout, epochs, batch_size, back_props, hist.history['loss'][0], hist.history['val_loss'][0], time_hist.train_time]
-			log_results('../testing/results/fitness_params_test_results.csv', 'a', results=[result])
+			
+			log_results(results_dir + 'fitness_params_test_results.csv', 'a', results=[result])
 
 	
 	
