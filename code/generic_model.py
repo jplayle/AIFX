@@ -9,12 +9,14 @@ print("-- SLTM Neural Network: Forex training and testing environment.")
 
 from AIFX_common import *
 
-# TRAINING DATA
+# VARIABLES
 data_root_dir = r'/home/jhp/Dukascopy/'
 data_file     = r'GBPUSD_20180717-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
-
 data_timestep = extract_training_set_timestep(data_file)
+
+batch_test = False
+param_file_path = ''
 
 params = {'timestep':    data_timestep,
 		  'window':      60,
@@ -40,7 +42,7 @@ def main():
 	training_data    = get_data(training_data_src, price_index=1, headers=True)
 	td_scaled        = sc.fit_transform(training_data)
 	X_train, y_train = shape_training_data(td_scaled, params['window'], params['increment'])
-	print(len(y_train))
+	
 	NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1),
 						 deep_layers=params['deep_layers'],
 						 units      =params['units'],       
