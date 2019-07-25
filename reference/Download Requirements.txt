@@ -1,0 +1,17 @@
+Download Requirements:
+
+Python : https://www.python.org/downloads/
+- requests
+- datetime
+- csv
+- pandas
+- matplotlib
+- numpy
+- keras
+- sklearn
+
+Git: https://git-scm.com/download
+
+PuTTY : https://putty.org/
+
+Filezilla: https://filezilla-project.org/download.php?type=client (PRO = £15)

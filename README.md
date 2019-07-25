@@ -10,3 +10,21 @@ https://www.truefx.com/?page=downloads
 Resources:
 https://keras.io/
 https://www.numpy.org/
+
+#bin#
+Contains all relevant executables
+
+#code#
+Contains all relevant code, including...
+
+#data#
+Contains all utilised data
+
+#models#
+Contains all historic prediction models
+
+#reference#
+Contains all sources of information used for creating all parts of project
+
+#testing#
+Contains planned test schedule, and run test results
