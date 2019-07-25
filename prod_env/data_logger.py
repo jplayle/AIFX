@@ -15,6 +15,8 @@ import traceback
 from smtplib import SMTP
 from email import message_from_string
 
+from AIFX_common_PROD import AIFX_Prod_Variables
+
 """
 NOTES etc
 - updates are on the minute, every minute
@@ -32,18 +34,12 @@ for arg in sys.argv:
 			args['comms'] = comms_val
 			
 
-class IG_API():
-	
-	crypto_epics = ["CS.D.BITCOIN.CFD.IP", "CS.D.ETHUSD.CFD.IP", "CS.D.LTCUSD.CFD.IP", "CS.D.XRPUSD.CFD.IP"]
-	fiat_epics   = ["CS.D.GBPUSD.CFD.IP", "CS.D.USDJPY.CFD.IP", "CS.D.EURGBP.CFD.IP", "CS.D.EURJPY.CFD.IP", "CS.D.EURUSD.CFD.IP", "CS.D.GBPJPY.CFD.IP",	\
-					"CS.D.AUDJPY.CFD.IP", "CS.D.AUDUSD.CFD.IP", "CS.D.AUDCAD.CFD.IP", "CS.D.USDCAD.CFD.IP", "CS.D.NZDUSD.CFD.IP", "CS.D.NZDJPY.CFD.IP",	\
-					"CS.D.AUDEUR.CFD.IP", "CS.D.AUDGBP.CFD.IP", "CS.D.CADJPY.CFD.IP", "CS.D.NZDGBP.CFD.IP", "CS.D.NZDEUR.CFD.IP", "CS.D.NZDCAD.CFD.IP"]
-	target_epics = fiat_epics + crypto_epics
+class IG_API(AIFX_Prod_Variables):
 	
 	sub          = "CHART"
 	mode         = "MERGE"
-	interval     = "1MINUTE"
-	interval_val = 1 #integer value of interval, expressed in minutes
+	#interval     = "1MINUTE"
+	#interval_val = 1 #integer value of interval, expressed in minutes
 	targ_fields  = ["BID_OPEN", "BID_HIGH", "BID_LOW", "BID_CLOSE", "LTV"]
 	aux_fields   = ["UTM", "CONS_END"]
 	field_schema = " ".join(targ_fields + aux_fields)
@@ -75,17 +71,23 @@ class IG_API():
 	binding_path	   = "/lightstreamer/bind_session.txt"
 	control_path	   = "/lightstreamer/control.txt"
 	
-	epic_data_array = {}
-	prev_data_array = {}
-	for epic in target_epics:
-		epic_data_array[epic] = {field: '' for field in targ_fields}
-		prev_data_array[epic] = {field: '' for field in targ_fields}
-	updates_t_array           = {epic: {'PREV': None, 'CURR': None} for epic in target_epics} #Last Update Time - query from start-up sequence in later versions
-	
 	FX_market_global_open_t  = dt_time(20) #open hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc) 
 	FX_market_global_close_t = dt_time(21) #close hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc)
 
 	def __init__(self, comms=False):
+		
+		AIFX_Prod_Variables.__init__(self)
+		
+		self.epic_data_array = {}
+		self.prev_data_array = {}
+		for epic in self.target_epics:
+			self.epic_data_array[epic] = {field: '' for field in self.targ_fields}
+			self.prev_data_array[epic] = {field: '' for field in self.targ_fields}
+		self.updates_t_array           = {epic: {'PREV': None, 'CURR': None} for epic in self.target_epics} #Last Update Time - query from start-up sequence in later versions
+		
+		self.interval     = self.data_interval_str
+		self.interval_val = self.data_interval_int
+		
 		self.comms = comms
 		self.status_sendr_addr = 'ai4fx@hotmail.com'
 		self.status_sendr_pswd = 'Edge540p1enxt'
@@ -138,18 +140,19 @@ class IG_API():
 		
 		for epic in self.target_epics:
 			ccy   = epic[5:11] #currency code e.g. EURGBP
+			fpath = self.data_dir + ccy + '/' 
 			fname = ccy + fname_suffix
 			
-			if not path.exists(ccy):
-				makedirs(ccy)
+			if not path.exists(fpath):
+				makedirs(fpath)
 				
-			data_files = sorted(listdir(ccy))
+			data_files = sorted(listdir(fpath))
 
 			if fname in data_files:
-				latest_file = ccy + '/' + fname 	
+				latest_file = fpath + fname 	
 				
 			elif data_files != []:
-				latest_file = ccy + '/' + data_files[-1]
+				latest_file = fpath + data_files[-1]
 				
 			else:
 				self.updates_t_array[epic]['PREV'] = t_now - timedelta(minutes=self.interval_val)
@@ -295,7 +298,7 @@ class IG_API():
 		f_mon  = str(t_curr.month) #file month
 		fname  = "-".join([_epic_ccy, f_year, f_mon]) + '.csv'
 		
-		full_path = _epic_ccy + '/' + fname
+		full_path = self.data_dir + '/' + _epic_ccy + '/' + fname
 		if not path.exists(full_path):
 			write_headers = True
 		else:
