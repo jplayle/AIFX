@@ -1,4 +1,4 @@
 #!/usr/bin/bash
-git add .
-git commit --all
+git add --all
+git commit -m 'update'
 git push origin master
