@@ -5,38 +5,43 @@ from sys import argv, exit
 from csv import reader, writer
 from time import clock
 
-from keras.models    import Sequential, load_model
-from keras.layers    import Dense
-from keras.layers    import LSTM
-from keras.layers    import Dropout
-from keras.callbacks import Callback
+from keras.models import load_model
 
 from sklearn.preprocessing import MinMaxScaler
 
 
-def extract_training_set_timestep(data_file=''):
-	return int(data_file.split("_")[-1].replace('.csv', ''))
 
-class LossHistory(Callback):
-	# Keras callback object for logging loss history during training.
-	# There is only 1 validation loss per epoch.
-	def on_train_begin(self, logs={}):
-		self.losses = []
-		self.val_losses = []
+class AIFX_Prod_Variables():
+	
+	def __init__(self):
+		self.crypto_epics = ["CS.D.BITCOIN.CFD.IP", "CS.D.ETHUSD.CFD.IP", "CS.D.LTCUSD.CFD.IP", "CS.D.XRPUSD.CFD.IP"]
+		self.fiat_epics   = ["CS.D.GBPUSD.CFD.IP", 
+							 "CS.D.USDJPY.CFD.IP", 
+							 "CS.D.EURGBP.CFD.IP", 
+							 "CS.D.EURJPY.CFD.IP", 
+							 "CS.D.EURUSD.CFD.IP", 
+							 "CS.D.GBPJPY.CFD.IP",	
+							 "CS.D.AUDJPY.CFD.IP", 
+							 "CS.D.AUDUSD.CFD.IP", 
+							 "CS.D.AUDCAD.CFD.IP", 
+							 "CS.D.USDCAD.CFD.IP", 
+							 "CS.D.NZDUSD.CFD.IP", 
+							 "CS.D.NZDJPY.CFD.IP",	
+							 "CS.D.AUDEUR.CFD.IP", 
+							 "CS.D.AUDGBP.CFD.IP", 
+							 "CS.D.CADJPY.CFD.IP", 
+							 "CS.D.NZDGBP.CFD.IP", 
+							 "CS.D.NZDEUR.CFD.IP", 
+							 "CS.D.NZDCAD.CFD.IP"]
+		self.target_epics = self.crypto_epics + self.fiat_epics
+		
+		self.data_interval_str = "1MIN"
+		self.data_interval_int = 1
+		
+		self.data_dir   = 'data/'
+		self.model_dir  = 'models/'
+		self.output_dir = 'predictions/' #tbc
 
-	def on_batch_end(self, batch, logs={}):
-		self.losses.append(logs.get('loss'))
-		self.val_losses.append(logs.get('val_loss'))
-
-class TimeHistory(Callback):
-	# Keras callback object for tracking the time taken to traing the model.
-	def on_train_begin(self, logs={}):
-		self.train_time = 0
-		self.train_start = clock()
-
-	def on_batch_end(self, batch, logs={}):
-		self.train_time += (clock() - self.train_start)
-		self.train_start = clock()
 		
 		
 def get_data(src, subset=(0,-1), price_index=1, headers=False):
@@ -64,27 +69,6 @@ def shape_training_data(data, window=5, increment=1):
 	_X    = np.reshape(_X, (_X.shape[0], _X.shape[1], 1))
 	
 	return (_X, _y)
-	
-	
-def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, loss_algo='mse', optimizer_algo='adam'):
-
-	regressor = Sequential()
-
-	regressor.add(LSTM(units=units, return_sequences=True, input_shape=in_shape))
-	regressor.add(Dropout(dropout))
-	
-	for l in range(deep_layers):
-		regressor.add(LSTM(units=units, return_sequences=True))
-		regressor.add(Dropout(dropout))
-
-	regressor.add(LSTM(units=units))
-	regressor.add(Dropout(dropout))
-
-	regressor.add(Dense(units=1))
-
-	regressor.compile(optimizer=optimizer_algo, loss=loss_algo)
-	
-	return regressor
 
 	
 def predict(data, RNN):
@@ -133,7 +117,3 @@ def plot_prediction(_path, timestep, window, real_values=[], pred_values=[], tit
 	pyplot.legend(['Real', 'Predicted'], loc='upper right')
 	
 	pyplot.savefig(_path)
-
-	
-def build_filename(params):
-	return "DL%d-U%d-D%d-E%d-BS%d-t%d-w%d" % (params['DL'], params['U'], params['D'], params['E'], params['BS'], params['t'], params['w']) 

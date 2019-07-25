@@ -9,18 +9,16 @@ e.g. GBPUSD_3600_60_20200101.h5
 from os import listdir
 from datetime import date, datetime
 
-from AIFX_common import *
+from AIFX_common_PROD import *
 
 
 
-class FRANN_Operations():
+class FRANN_Operations(AIFX_Prod_Variables):
 	
 	def __init__(self):
-		self.target_epics = ['CS.D.GBPUSD.CFD.IP']
 		
-		self.model_dir  = '../models/'
-		self.output_dir = '../predictions/' # tbc.
-
+		AIFX_Prod_Variables.__init__(self)
+		
 		self.timestep   = 10 #make low in order to debug (see next line after 'while True:' in predictor_loop())
 		self.n_tsteps   = 1
 		self.sum_tsteps = self.timestep * self.n_tsteps
@@ -102,7 +100,7 @@ class FRANN_Operations():
 def main():
 	
 	run = FRANN_Operations()
-	
+	print(run.target_epics)
 	run.predictor_loop()
 	
 if __name__ == '__main__':
