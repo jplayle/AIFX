@@ -7,7 +7,7 @@ e.g. GBPUSD_3600_60_20200101.h5
 """
 
 from os import listdir
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from AIFX_common_PROD import *
 
@@ -32,12 +32,53 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		
 		self.pred_rate = self.timestep #rate at which predictions are updated
 		
+		self.load_models()
+		
+	def load_models(self):
+		"""
+		- check how big FRANN will be - can they all be held in RAM?
+		If not, must load models individually if a large number are to be used.
+		Make sure to be using the bare bones NN - toggle off the optimizer state.
+		"""
+		self.model_store = {epic[5:11]: {} for epic in self.target_epics}
+		
+		for FRANN in listdir(self.model_dir):
+			model_params = model_name.replace('.h5', '').split('_')
+			
+			epic_ccy   = model_params[0]
+			timestep   = int(model_params[1])
+			window     = int(model_params[2])
+			valid_till = model_params[3]
+			valid_till = date(int(valid_till[:4]), int(valid_till[4:6]), int(valid_till[6:8]))
+			
+			self.model_store[epic_ccy][timestep] = {'FRANN':      load_model(FRANN),
+													'window':     window,
+													'valid_till': valid_till
+													} 
+			
+		return
+		
 	def build_window_data(self, data_path ='', timestep=0, window=0):
 		"""
 		- open relevant epic data file
 		- return a list of prices at timestep intervals of length=window
 		"""
 		return
+		
+	def write_prediction(self, epic_ccy='', timestep=0, dtime=None, price=0):
+		"""
+		- file name: PAIR_YYYY_M_PRED_TSTEP.csv
+		- e.g.:    GBPUSD_2019_7_PRED_3600.csv
+		dtime = datetime.datetime object
+		"""
+		fpath = '' #tbc
+		fname = fpath + "_".join([epic_ccy, dtime.year, dtime.month, 'PRED', timestep, '.csv'])
+		
+		with open(fname, 'a') as csv_w:
+			csv_w = writer(csv_f, lineterminator='\n')
+			csv_w.writerow([dtime, price])
+			
+		return 
 	
 	def predictor_loop(self):
 
@@ -45,62 +86,36 @@ class FRANN_Operations(AIFX_Prod_Variables):
 
 			if int(clock()) % self.pred_rate == 0:
 				today = date.today()
+				tnow  = datetime.utcnow()
 
 				for epic in self.target_epics:
 					epic_ccy = epic[5:11]
-
-					for model_name in listdir(self.model_dir):
-						model_params = model_name.replace('.h5', '').split('_')
-
-						if model_params[0] == epic_ccy:
-							FRANN = load_model(self.model_dir + model_name)
-
-							timestep = int(model_params[1])
-							window   = int(model_params[2])
+				
+					for timestep, model_dict in self.model_store[epic[epic_ccy]].items():
+						if today > model_dict['valid_till']:
+							#don't use models that are deemed out of date
+							#send warning that model needs updating
+							continue
 							
-							valid_till = model_params[3]
-							valid_till = date(int(valid_till[:4]), int(valid_till[4:6]), int(valid_till[6:8]))
-							if today >= valid_till:
-								#don't use models that are deemed out of date
-								#send warning that model needs updating
-								continue
+						FRANN  = model_dict['FRANN']
+						window = model_dict['window']
 
-							sc = MinMaxScaler(feature_range=(0,1))
-							
-							window_data = self.build_window_data() # COMPLETE THIS FUNCTION!!!
-							wd_scaled   = sc.fit_transform(window_data)
+						sc = MinMaxScaler(feature_range=(0,1))
+						
+						#window_data = self.build_window_data() # COMPLETE THIS FUNCTION!!!
+						#wd_scaled   = sc.fit_transform(window_data)
 
-							prediction = FRANN.predict(wd_scaled)
-
-
-		return
-
-		pred = NeuralNet.predict(X_eval, verbose=1)
-		pred = sc.inverse_transform(pred)
-
-		result = []
-
-		for x, p_real in enumerate(validate_data):
-			try:
-				p_pred = pred[x][0]
-			except IndexError:
-				p_pred = None
-			result.append([(x*5)+window, p_real[0], p_pred])
-
-		log_results('../testing/results/pred.csv', 'a', results=result)
-		#plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.jpg", timestep=5, window=60, real_values=validate_data, pred_values=pred, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
-
-		for x in range(pred.size):
-			result.append([(x+1)*window*timestep, float(validate_data[(x+1)*window][0]), pred[x][0]])
-
-		#log_results('../testing/results/pred.csv', 'a', results=result)
-		plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.png", timestep=timestep, window=window, results=result, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
+						#prediction = FRANN.predict(wd_scaled)
+						#pred_price = sc.inverse_transform(prediction)
+						pred_time  = tnow + timedelta(timestep)
+						print(pred_time)
+						#self.write_prediction(epic_ccy, timestep, pred_time, pred_price)
 
 	
 def main():
 	
 	run = FRANN_Operations()
-	print(run.target_epics)
+	
 	run.predictor_loop()
 	
 if __name__ == '__main__':
