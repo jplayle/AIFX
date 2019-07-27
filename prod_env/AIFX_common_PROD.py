@@ -3,7 +3,7 @@ import matplotlib.pyplot as pyplot
 
 from sys import argv, exit
 from csv import reader, writer
-from time import clock
+from time import clock, sleep
 
 from keras.models import load_model
 
@@ -35,12 +35,19 @@ class AIFX_Prod_Variables():
 							 "CS.D.NZDCAD.CFD.IP"]
 		self.target_epics = self.crypto_epics + self.fiat_epics
 		
-		self.data_interval_str = "1MIN"
-		self.data_interval_int = 1
+		self.data_interval_str   = "1MIN"
+		self.data_interval_int   = 1
+		self.data_interval_units = 60
+		self.data_interval_sec   = self.data_interval_int * self.data_interval_units
 		
 		self.data_dir   = 'data/'
 		self.model_dir  = 'models/'
 		self.output_dir = 'predictions/' #tbc
+		
+		self.pred_layer = 0  # boolean switch for layer predictions 
+		self.layer_cap  = 0  # 0 = none a.k.a. no limit - use all layers 
+		
+		self.pred_rate  = 10 #self.data_interval_int * 60 
 
 		
 		
