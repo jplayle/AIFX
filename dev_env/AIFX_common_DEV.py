@@ -39,14 +39,14 @@ class TimeHistory(Callback):
 		self.train_start = clock()
 		
 		
-def get_data(src, subset=(0,-1), price_index=1, headers=False):
+def get_data(src, price_index=1, headers=False):
 	# src: relative path to .csv file containing data.
 	# Return type: list, data is strings as found in csv.
 	with open(src, 'r') as csv_f:
 		csv_r = reader(csv_f)
 		if headers:
 			csv_r.__next__()
-		return [[r[price_index]] for r in csv_r[subset[0]:subset[1]]]
+		return [[r[price_index]] for r in csv_r]
 	
 def shape_training_data(data, window=5, increment=1):
 	# data:      numpy ndarray of normalised/scaled data points for training on.

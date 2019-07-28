@@ -43,17 +43,16 @@ class FRANN_Operations(AIFX_Prod_Variables):
 													'valid_till': valid_till
 													}
 		
-	def build_window_data(self, epic_ccy='', t_start=None, timestep=0, window=0):
+	def build_window_data(self, epic_ccy='', timestep=0, window=0, t_start=None):
 		"""
 		- open relevant epic data file
 		- return a list of prices at timestep intervals of length=window
+		- remove ability to return none
 		"""
 		window_data = []
 		
-		row_skip = timestep / self.data_interval_sec
-		f_row    = (row_skip * window * -1) - 1
-		l_row    = -1
-		
+		row_skip = int(timestep / self.data_interval_sec)
+
 		data_path  = self.data_dir + epic_ccy + '/'
 		data_files = sorted(listdir(data_path))[::-1]
 		
@@ -66,15 +65,17 @@ class FRANN_Operations(AIFX_Prod_Variables):
 				csv_r = list(reader(csv_f))
 				
 				for x in range(window - w_len):
-					i = -((x * row_skip) - r_skip_newf)
+					i = -((x * row_skip) - r_skip_newf) - 1
 					try:
-						window_data.append(csv_r[i])
+						window_data.append([csv_r[i][self.pred_data_index]])
 						w_len += 1
 						if w_len == window:
 							return window_data[::-1]
 					except IndexError:
 						r_skip_newf = row_skip - (sum(1 for r in csv_r) + i)
 						break
+						
+		return window_data
 		
 	def write_prediction(self, epic_ccy='', timestep=0, dtime=None, price_array=[]):
 		"""
@@ -109,19 +110,19 @@ class FRANN_Operations(AIFX_Prod_Variables):
 							#don't use models that are deemed out of date
 							#send warning that model needs updating
 							continue
-						print(epic_ccy, timestep, model_dict)
+						
 						FRANN  = model_dict['FRANN']
 						window = model_dict['window']
 						
 						sc = MinMaxScaler(feature_range=(0,1))
 						
-						#window_data = self.build_window_data(epic_ccy) # COMPLETE THIS FUNCTION!!!
-						#wd_scaled   = sc.fit_transform(window_data)
-
-						#prediction = FRANN.predict(wd_scaled)
-						#pred_price = sc.inverse_transform(prediction)
-						pred_time  = tnow + timedelta(seconds=timestep)
+						window_data = self.build_window_data(epic_ccy, timestep, window) # COMPLETE THIS FUNCTION!!!
+						wd_scaled   = sc.fit_transform(window_data)
 						
+						prediction = FRANN.predict(wd_scaled)
+						pred_price = sc.inverse_transform(prediction)
+						pred_time  = tnow + timedelta(seconds=timestep)
+						print(prediction, pred_price, pred_time)
 						#self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
 
 	

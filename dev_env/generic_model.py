@@ -7,7 +7,7 @@ NOTES
 
 print("-- SLTM Neural Network: Forex training and testing environment.")
 
-from AIFX_common import *
+from AIFX_common_DEV import *
 
 # VARIABLES
 data_root_dir = r'/home/jhp/Dukascopy/'
@@ -25,7 +25,7 @@ params = {'timestep':    data_timestep,
 		  'deep_layers': 0,
 		  'units':       80,
 		  'dropout':     0.2,
-		  'epochs':      50,
+		  'epochs':      40,
 		  'batch_size':  32,
 		  'loss_algo':   'mae',
 		  'optimizer_algo': 'adam'
@@ -59,7 +59,9 @@ def main():
 						 epochs          =params['epochs'],              
 						 batch_size      =params['batch_size'],          
 						 callbacks       =[loss_hist, time_hist], shuffle=False)
-	#NeuralNet.save('m.h5')
+	
+	fname = '_'.join(['GBPUSD', str(params['timestep']), str(params['window']), '20200101', '.h5'])
+	NeuralNet.save(fname)
 
 	#NeuralNet = load_model("m1.h5")
 	#eval = NeuralNet.evaluate(X_eval, y_eval, batch_size=batch_size)

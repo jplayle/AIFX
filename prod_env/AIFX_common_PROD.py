@@ -48,6 +48,8 @@ class AIFX_Prod_Variables():
 		self.layer_cap  = 0  # 0 = none a.k.a. no limit - use all layers 
 		
 		self.pred_rate  = 10 #self.data_interval_int * 60 
+		
+		self.pred_data_index = 2 #column for data extraction
 
 		
 		
