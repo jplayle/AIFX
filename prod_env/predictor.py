@@ -8,9 +8,13 @@ e.g. GBPUSD_3600_60_20200101.h5
 
 from os import listdir
 from datetime import date, datetime, timedelta
+from time import clock, sleep
+
+import numpy as np
+from keras.models import load_model
+from sklearn.preprocessing import MinMaxScaler
 
 from AIFX_common_PROD import *
-
 
 
 class FRANN_Operations(AIFX_Prod_Variables):
@@ -67,10 +71,15 @@ class FRANN_Operations(AIFX_Prod_Variables):
 				for x in range(window - w_len):
 					i = -((x * row_skip) - r_skip_newf) - 1
 					try:
-						window_data.append([csv_r[i][self.pred_data_index]])
-						w_len += 1
-						if w_len == window:
-							return window_data[::-1]
+						data_point = csv_r[i][self.pred_data_index]
+						if data_point != '':
+							window_data.append([data_point])
+							w_len += 1
+							if w_len == window:
+								return window_data[::-1]
+						else:
+							# check for nearby price
+							return []
 					except IndexError:
 						r_skip_newf = row_skip - (sum(1 for r in csv_r) + i)
 						break
@@ -116,7 +125,9 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						
 						sc = MinMaxScaler(feature_range=(0,1))
 						
-						window_data = self.build_window_data(epic_ccy, timestep, window) # COMPLETE THIS FUNCTION!!!
+						window_data = self.build_window_data(epic_ccy, timestep, window)
+						if window_data == []:
+							continue
 						window_data = sc.fit_transform(window_data)
 						window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
 						
