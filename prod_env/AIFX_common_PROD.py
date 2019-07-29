@@ -40,9 +40,9 @@ class AIFX_Prod_Variables():
 		self.data_interval_units = 60
 		self.data_interval_sec   = self.data_interval_int * self.data_interval_units
 		
-		self.data_dir   = 'data/'
+		self.data_dir   = 'historic_data/'
 		self.model_dir  = 'models/'
-		self.output_dir = 'predictions/' #tbc
+		self.output_dir = 'predicted_data/' #tbc
 		
 		self.pred_layer = 0  # boolean switch for layer predictions 
 		self.layer_cap  = 0  # 0 = none a.k.a. no limit - use all layers 
@@ -61,23 +61,6 @@ def get_data(src, subset=(0,-1), price_index=1, headers=False):
 		if headers:
 			csv_r.__next__()
 		return [[r[price_index]] for r in csv_r[subset[0]:subset[1]]]
-	
-def shape_training_data(data, window=5, increment=1):
-	# data:      numpy ndarray of normalised/scaled data points for training on.
-	# window:    integer - number of previous data points to use per prediction. 
-	# increment: integer - how many timesteps to shift the window each time.
-	_X = []
-	_y = []
-	for x in range(int((len(data) - window) / increment)):
-		i = x * increment
-		j = i + window
-		_X.append(data[i:j, 0])
-		_y.append(data[j, 0])
-		
-	_X, y = np.array(_X), np.array(_y)
-	_X    = np.reshape(_X, (_X.shape[0], _X.shape[1], 1))
-	
-	return (_X, _y)
 
 	
 def predict(data, RNN):

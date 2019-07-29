@@ -83,10 +83,10 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		- e.g.:    GBPUSD_2019_7_PRED_3600.csv
 		dtime = datetime.datetime object
 		"""
-		fpath = '' #tbc
-		fname = fpath + "_".join([epic_ccy, dtime.year, dtime.month, 'PRED', timestep, '.csv'])
+	
+		fname = self.output_dir + "_".join([epic_ccy, str(dtime.year), str(dtime.month), 'PRED', str(timestep)]) + '.csv'
 		
-		with open(fname, 'a') as csv_w:
+		with open(fname, 'a') as csv_f:
 			csv_w = writer(csv_f, lineterminator='\n')
 			csv_w.writerow([dtime] + price_array)
 	
@@ -117,13 +117,14 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window) # COMPLETE THIS FUNCTION!!!
-						wd_scaled   = sc.fit_transform(window_data)
+						window_data = sc.fit_transform(window_data)
+						window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
 						
-						prediction = FRANN.predict(wd_scaled)
+						prediction = FRANN.predict(window_data)
 						pred_price = sc.inverse_transform(prediction)
 						pred_time  = tnow + timedelta(seconds=timestep)
-						print(prediction, pred_price, pred_time)
-						#self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
+						
+						self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
 
 	
 def main():
