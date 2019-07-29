@@ -51,6 +51,11 @@ class AIFX_Prod_Variables():
 		
 		self.pred_data_index = 2 #column for data extraction
 
+class File_Naming():
+
+	def historic_data(self):
+		return
+
 		
 		
 def get_data(src, subset=(0,-1), price_index=1, headers=False):
@@ -61,14 +66,12 @@ def get_data(src, subset=(0,-1), price_index=1, headers=False):
 		if headers:
 			csv_r.__next__()
 		return [[r[price_index]] for r in csv_r[subset[0]:subset[1]]]
-
 	
 def predict(data, RNN):
 	X_test = np.array(data)
 	X_test = np.reshape(X_predict, (X_predict.shape[0], X_predict.shape[1], 1))
 	
 	return RNN.predict(data)
-	
 	
 def forecast(data, RNN, fwd_steps=1):
 	X_predict = np.array([data])
@@ -94,7 +97,6 @@ def log_results(path='', mode='a', results=[]):
 		csv_w = writer(csv_f, lineterminator='\n')
 		for r in results:
 			csv_w.writerow([i for i in r])
-
 			
 def plot_prediction(_path, timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label=""):
 	len_rv = len(real_values)
