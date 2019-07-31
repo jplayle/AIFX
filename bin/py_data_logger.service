@@ -2,9 +2,9 @@
 RequiredBy=multi-user.target
 
 [Unit]
-Description=Run data_logger.py on startup.
+Description=Run data_logger.py indefinitely and on startup.
 
 [Service]
 Type=simple
-WorkingDirectory=/home/ubuntu
-ExecStart=/usr/bin/python3 /home/ubuntu/data_logger.py comms=True
+WorkingDirectory=/home/ubuntu/prod_env
+ExecStart=/usr/bin/python3 /home/ubuntu/prod_env/data_logger.py comms=True

@@ -1,0 +1,10 @@
+setup: server ssh, local shell
+
+ssh: sudo systemctl stop py_data_logger.service
+
+local shell:
+1. run python script to re-format file
+2. scp new data file(s) to server (/home/ubuntu/prod_env/historic_data/epic_ccy)
+
+ssh: sudo systemctl start py_data_logger.service
+ssh: sudo systemctl status py_data_logger.service (check everything ok)
