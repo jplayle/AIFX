@@ -23,6 +23,8 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		
 		AIFX_Prod_Variables.__init__(self)
 		
+		self.max_data_offset = 0.05
+		
 		self.load_models()
 		
 	def load_models(self):
@@ -53,6 +55,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		- return a list of prices at timestep intervals of length=window
 		- remove ability to return none
 		"""
+		
 		window_data = []
 		
 		row_skip = int(timestep / self.data_interval_sec)
@@ -64,12 +67,13 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		r_skip_newf = 0 #row skip if opening a new file
 		
 		for data_file in data_files:
-			
+
 			with open(data_path + data_file, 'r') as csv_f:
 				csv_r = list(reader(csv_f))
 				
 				for x in range(window - w_len):
 					i = -((x * row_skip) - r_skip_newf) - 1
+					
 					try:
 						data_point = csv_r[i][self.pred_data_index]
 						if data_point != '':
@@ -77,14 +81,42 @@ class FRANN_Operations(AIFX_Prod_Variables):
 							w_len += 1
 							if w_len == window:
 								return window_data[::-1]
+								
 						else:
-							# check for nearby price
-							return []
+							found_data  = False
+							data_offset = int(row_skip * self.max_data_offset) + 1
+							offset_indx = [[-x, x] for x in range(1, data_offset) if i + x <= -1 else [-1, x]]
+							
+							for x in range(1, data_offset): #search for nearby data within +-x% of timestep
+								data_up  = csv_r[i+x][self.pred_data_index]
+								data_dwn = csv_r[i-x][self.pred_data_index]
+								
+								if data_up != '':
+									found_data = True
+									window_data.append([data_up])
+									w_len += 1
+									if w_len == window:
+										return window_data[::-1]
+									break
+								elif data_dwn != '':
+									found_data = True
+									window_data.append([data_dwn])
+									w_len += 1
+									if w_len == window:
+										return window_data[::-1]
+									break
+									
+							if not found_data:
+								return [] #no data can be missing
+								
 					except IndexError:
 						r_skip_newf = row_skip - (sum(1 for r in csv_r) + i)
 						break
 						
-		return window_data
+		if w_len == window:				
+			return window_data[::-1]
+		else:
+			return []
 		
 	def write_prediction(self, epic_ccy='', timestep=0, dtime=None, price_array=[]):
 		"""
@@ -126,6 +158,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window)
+						print(window_data)
 						if window_data == []:
 							continue
 						window_data = sc.fit_transform(window_data)

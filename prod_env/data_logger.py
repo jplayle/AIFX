@@ -405,8 +405,11 @@ class IG_API(AIFX_Prod_Variables):
 			self.subscribe_time = datetime.utcnow()
 				
 		def process_data(_epic, _data):
-			IS_END = data.pop(-1)
-			UTM    = data.pop(-1)
+			try:
+				IS_END = data.pop(-1)
+				UTM    = data.pop(-1)
+			except IndexError:
+				return "0"
 			if UTM not in self.void_chars:
 				self.updates_t_array[_epic]['CURR'] = datetime.utcfromtimestamp(int(UTM) / 1000.0)
 
