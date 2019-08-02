@@ -158,7 +158,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window)
-						print(window_data)
 						if window_data == []:
 							continue
 						window_data = sc.fit_transform(window_data)
