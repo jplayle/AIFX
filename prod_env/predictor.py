@@ -56,6 +56,33 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		- remove ability to return none
 		"""
 		
+		def search_around_blank(data_list, index, r_skip, newf_search=False, _x_prev=0):
+			#search for nearby data within +/-x% of timestep e.g. +/- 3 mins
+			new_file = False
+			
+			data_offset = int(r_skip * self.max_data_offset)
+			if not newf_search:
+				search_rng = (1, data_offset + 1)
+			else:
+				search_rng = (0, data_offset - _x_prev)
+			
+			for x in range(search_rng[0], search_rng[1]):
+				try:
+					data_up = data_list[index + x][self.pred_data_index]
+					if data_up != '':
+						return data_up
+				except IndexError:
+					pass
+					
+				try:
+					data_dwn = data_list[index - x][self.pred_data_index]
+					if data_dwn != '':
+						return data_dwn
+				except IndexError:
+					return ['newf', x]
+					
+			return ''
+		
 		window_data = []
 		
 		row_skip = int(timestep / self.data_interval_sec)
@@ -65,62 +92,62 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		
 		w_len       = 0
 		r_skip_newf = 0 #row skip if opening a new file
+		srch_newf   = False
+		x_prev      = 0
 		
+		initiate = True
 		for data_file in data_files:
 
 			with open(data_path + data_file, 'r') as csv_f:
 				csv_r = list(reader(csv_f))
 				csv_r.pop(0) #remove headers
 				
-				for x in range(window - w_len):
+				j = 0
+				if initiate:
+					for r in csv_r[::-1]:
+						data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M%:S')
+						if data_time == t_start:
+							r_skip_newf = j
+							break
+						elif data_time < t_start:
+							return []
+						j += 1
+					initiate = False
+						
+				
+				if srch_newf:
+					srch_newf  = False
+					data_point = search_around_blank(csv_r, -1, row_skip, newf_search=True, _x_prev=x_prev)
+					try:
+						float(data_point)
+						window_data.append([data_point])
+						w_len += 1
+						if w_len == window:
+							return window_data[::-1]
+					except TypeError:
+							return []
+			
+				for x in range(window - w_len):					
 					i = -((x * row_skip) + r_skip_newf) - 1
-					
+
 					try:
 						data_point = csv_r[i][self.pred_data_index]
-						
-						if data_point != '':
+						if data_point == '':
+							data_point = search_around_blank(csv_r, i, row_skip)
+						try:
+							float(data_point)
 							window_data.append([data_point])
 							w_len += 1
 							if w_len == window:
 								return window_data[::-1]
-								
-						else:
-							#search for nearby data within +/-x% of timestep e.g. +/- 3 mins
-							found_data  = False
-							new_file    = False
-							data_offset = int(row_skip * self.max_data_offset) + 1
-							
-							for x in range(1, data_offset):
-								try:
-									data_up = csv_r[i+x][self.pred_data_index]
-									if data_up != '':
-										found_data = True
-										window_data.append([data_up])
-										w_len += 1
-										if w_len == window:
-											return window_data[::-1]
-										break
-								except IndexError:
-									pass
-									
-								try:
-									data_dwn = csv_r[i-x][self.pred_data_index]
-									if data_dwn != '':
-										found_data = True
-										window_data.append([data_dwn])
-										w_len += 1
-										if w_len == window:
-											return window_data[::-1]
-										break
-								except IndexError:
-									new_file = True
-									break
-									
-							if new_file:
-								r_skip_newf = 0
+						except TypeError:
+							if data_point != '':
+								srch_newf   = True
+								x_prev      = data_point[1]
+								r_skip_newf = sum(-1 for r in csv_r) - i - 1 + row_skip
 								break
-							elif not found_data:
-								return [] #no data can be missing
+							else:
+								return []
 								
 					except IndexError:
 						r_skip_newf = sum(-1 for r in csv_r) - i - 1
@@ -145,12 +172,21 @@ class FRANN_Operations(AIFX_Prod_Variables):
 			csv_w.writerow([dtime] + price_array)
 	
 	def predictor_loop(self):
+	
+		def utc_now():
+			#utc_now = datetime.utcnow().replace(second=0, microsecond=0)
+			return datetime.utcnow().replace(second=0, microsecond=0)
+		
+		t_prev = clock()
 		
 		while True:
 			
-			if clock() % self.pred_rate == 0:
-				today = date.today()
-				tnow  = datetime.utcnow()
+			t_now = clock()
+
+			if t_now - t_prev >= self.pred_rate:
+				t_start = utc_now() - timedelta(seconds=self.data_interval_sec)
+				today   = date.today()
+				t_prev  = t_now
 
 				for epic in self.target_epics:
 					epic_ccy = epic[5:11]
@@ -170,7 +206,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						
 						sc = MinMaxScaler(feature_range=(0,1))
 						
-						window_data = self.build_window_data(epic_ccy, timestep, window)
+						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
 						if window_data == []:
 							continue
 						window_data = sc.fit_transform(window_data)
@@ -178,7 +214,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						
 						prediction = FRANN.predict(window_data)
 						pred_price = sc.inverse_transform(prediction)
-						pred_time  = tnow + timedelta(seconds=timestep)
+						pred_time  = t_start + timedelta(seconds=timestep)
 						
 						self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
 
