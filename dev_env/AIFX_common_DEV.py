@@ -48,7 +48,7 @@ def get_data(src, price_index=1, headers=False):
 			csv_r.__next__()
 		return [[r[price_index]] for r in csv_r]
 	
-def shape_training_data(data, window=5, increment=1):
+def shape_data(data, window=5, increment=1):
 	# data:      numpy ndarray of normalised/scaled data points for training on.
 	# window:    integer - number of previous data points to use per prediction. 
 	# increment: integer - how many timesteps to shift the window each time.

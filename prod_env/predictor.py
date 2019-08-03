@@ -96,6 +96,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		x_prev      = 0
 		
 		initiate = True
+		
 		for data_file in data_files:
 
 			with open(data_path + data_file, 'r') as csv_f:
@@ -105,7 +106,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 				j = 0
 				if initiate:
 					for r in csv_r[::-1]:
-						data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M%:S')
+						data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
 						if data_time == t_start:
 							r_skip_newf = j
 							break
@@ -113,8 +114,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 							return []
 						j += 1
 					initiate = False
-						
-				
+										
 				if srch_newf:
 					srch_newf  = False
 					data_point = search_around_blank(csv_r, -1, row_skip, newf_search=True, _x_prev=x_prev)
@@ -184,7 +184,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 			t_now = clock()
 
 			if t_now - t_prev >= self.pred_rate:
-				t_start = utc_now() - timedelta(seconds=self.data_interval_sec)
+				t_start = utc_now() - timedelta(seconds=self.data_interval_sec * 2)
 				today   = date.today()
 				t_prev  = t_now
 
@@ -209,11 +209,12 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
 						if window_data == []:
 							continue
+						
 						window_data = sc.fit_transform(window_data)
 						window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
 						
 						prediction = FRANN.predict(window_data)
-						pred_price = sc.inverse_transform(prediction)
+						pred_price = sc.inverse_transform(prediction)[0][0]
 						pred_time  = t_start + timedelta(seconds=timestep)
 						
 						self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])

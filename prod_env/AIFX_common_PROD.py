@@ -40,7 +40,7 @@ class AIFX_Prod_Variables():
 		self.pred_layer = 0  # boolean switch for layer predictions 
 		self.layer_cap  = 0  # 0 = none a.k.a. no limit - use all layers 
 		
-		self.pred_rate  = 10#self.data_interval_sec
+		self.pred_rate  = self.data_interval_sec
 		
 		self.pred_data_index = 2 #column for data extraction
 

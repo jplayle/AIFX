@@ -15,6 +15,8 @@ data_file     = r'GBPUSD_20180717-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
+
+
 batch_test = False
 param_file_path = ''
 
@@ -27,45 +29,65 @@ params = {'timestep':    data_timestep,
 		  'dropout':     0.2,
 		  'epochs':      40,
 		  'batch_size':  32,
-		  'loss_algo':   'mae',
+		  'loss_algo':   'mse',
 		  'optimizer_algo': 'adam'
 		 }
 
 	
-def main():
+def main(train=True, save=True, predict=False, model_name=''):
 	
 	timestep = params['timestep']
 	window   = params['window']
 	
 	sc = MinMaxScaler(feature_range=(0,1))
-
-	training_data    = get_data(training_data_src, price_index=1, headers=True)
-	td_scaled        = sc.fit_transform(training_data)
-	X_train, y_train = shape_training_data(td_scaled, params['window'], params['increment'])
 	
-	NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1),
-						 deep_layers=params['deep_layers'],
-						 units      =params['units'],       
-						 dropout    =params['dropout'],
-						 loss_algo  =params['loss_algo'],
-						 optimizer_algo=params['optimizer_algo']
-						 )
+	if train:
+		training_data    = get_data(training_data_src, price_index=1, headers=True)
+		td_scaled        = sc.fit_transform(training_data)
+		X_train, y_train = shape_data(td_scaled, params['window'], params['increment'])
 
-	loss_hist = LossHistory()
-	time_hist = TimeHistory()
+		NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1),
+							 deep_layers=params['deep_layers'],
+							 units      =params['units'],       
+							 dropout    =params['dropout'],
+							 loss_algo  =params['loss_algo'],
+							 optimizer_algo=params['optimizer_algo']
+							 )
 
-	hist = NeuralNet.fit(X_train, y_train,                     
-						 validation_split=params['val_split'], 
-						 epochs          =params['epochs'],              
-						 batch_size      =params['batch_size'],          
-						 callbacks       =[loss_hist, time_hist], shuffle=False)
-	
-	fname = '_'.join(['GBPUSD', str(params['timestep']), str(params['window']), '20200101', '.h5'])
-	NeuralNet.save(fname)
+		loss_hist = LossHistory()
+		time_hist = TimeHistory()
 
-	#NeuralNet = load_model("m1.h5")
-	#eval = NeuralNet.evaluate(X_eval, y_eval, batch_size=batch_size)
-	
+		hist = NeuralNet.fit(X_train, y_train,                     
+							 validation_split=params['val_split'], 
+							 epochs          =params['epochs'],              
+							 batch_size      =params['batch_size'],          
+							 callbacks       =[loss_hist, time_hist], shuffle=False)
+		if save:
+			fname = '_'.join(['GBPUSD', str(params['timestep']), str(params['window']), '20200101', '.h5'])
+			NeuralNet.save(fname)
+
+	if predict and model_name:
+		NeuralNet = load_model(model_name)
+		
+		predict_data   = get_data(training_data_src, price_index=1, headers=True)
+		pd_scaled      = sc.fit_transform(predict_data)
+		X_pred, y_pred = shape_data(pd_scaled, 60, 1)
+		
+		predictions = []
+		
+		d_len = sum(1 for x in X_pred)
+		for n in range(d_len):
+			_X = X_pred[n]
+			_X = np.reshape(_X, (_X.shape[1], _X.shape[0], 1))
+			
+			pred = sc.inverse_transform(NeuralNet.predict(_X))[0][0]
+			real = sc.inverse_transform([[y_pred[n]]])[0][0]
+			
+			predictions.append([real, pred, (abs(real - pred) / real)*100])
+		
+		for p in predictions:
+			print(p)
+		
 	return
 
 	pred = NeuralNet.predict(X_eval, verbose=1)
@@ -92,4 +114,4 @@ def main():
 	
 	
 if __name__ == '__main__':
-	main()
+	main(train=False, predict=True, model_name='GBPUSD_3600_60_20200101_.h5')
