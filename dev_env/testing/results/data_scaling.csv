@@ -1,5 +1,0 @@
-scaler_objects,scaler_input,training_data,validate_data,training_error,validate_error,val_loss_error,Notes
-1,"each, successively",fit_transform,fit_transform,yes,no,no,Error in transform invalidates any models.
-1,training data only,fit_transform,transform,no,no,yes,"Tried many settings, always greatly overfit."
-2,"each, individually",fit_transform,fit_transform,no,no,no,Seems like best option.
-1,"both, in one scaling",transform,transform,no,no,no,Less accurate than 2 scaler objects.

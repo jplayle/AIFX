@@ -2,7 +2,7 @@
 AIFX Production Environment - Common Variables & Functions. 
 """
 from csv import reader, writer
-
+from datetime import datetime
 
 class AIFX_Prod_Variables():
 	
@@ -43,14 +43,19 @@ class AIFX_Prod_Variables():
 		self.pred_rate  = self.data_interval_sec
 		
 		self.pred_data_index = 2 #column for data extraction
+	
+class FileNaming():
 
-		
-class File_Naming():
+	def historic_data_filename(self, dir_path, epic_ccy, t_curr):
+		suffix = '.csv'
+		fname  = '-'.join([epic_ccy, str(t_curr.year), str(t_curr.month)]) + suffix
+		return dir_path + '/'.join([epic_ccy, fname])
+	
+	def predicted_data_filename(self, dir_path, epic_ccy, dtime, timestep):
+		suffix = '.csv'
+		fname  = '_'.join([epic_ccy, str(dtime.year), str(dtime.month), 'PRED', str(timestep)]) + '.csv'
+		return dir_path + '/'.join([epic_ccy, fname])
 
-	def historic_data(self):
-		return
-
-		
 def get_data(src, subset=(0,-1), price_index=1, headers=False):
 	# src: relative path to .csv file containing data.
 	# Return type: list, data is strings as found in csv.

@@ -9,13 +9,15 @@ print("-- SLTM Neural Network: Forex training and testing environment.")
 
 from AIFX_common_DEV import *
 
+file_namer = FileNaming()
+
+from statistics import stdev
+
 # VARIABLES
 data_root_dir = r'/home/jhp/Dukascopy/'
-data_file     = r'GBPUSD_20180717-20190717_3600.csv'
+data_file     = r'GBPUSD_20190617-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
-
-
 
 batch_test = False
 param_file_path = ''
@@ -34,17 +36,19 @@ params = {'timestep':    data_timestep,
 		 }
 
 	
-def main(train=True, save=True, predict=False, model_name=''):
+def main(train=False, save=True, predict=True, plot=False, model_name='GBPUSD_3600_60_40.h5'):
 	
 	timestep = params['timestep']
 	window   = params['window']
 	
 	sc = MinMaxScaler(feature_range=(0,1))
 	
+	NeuralNet = None
+	
 	if train:
 		training_data    = get_data(training_data_src, price_index=1, headers=True)
 		td_scaled        = sc.fit_transform(training_data)
-		X_train, y_train = shape_data(td_scaled, params['window'], params['increment'])
+		X_train, y_train = shape_data(td_scaled, window, params['increment'])
 
 		NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1),
 							 deep_layers=params['deep_layers'],
@@ -63,17 +67,27 @@ def main(train=True, save=True, predict=False, model_name=''):
 							 batch_size      =params['batch_size'],          
 							 callbacks       =[loss_hist, time_hist], shuffle=False)
 		if save:
-			fname = '_'.join(['GBPUSD', str(params['timestep']), str(params['window']), '20200101', '.h5'])
-			NeuralNet.save(fname)
+			model_name = file_namer.model_filename(epic='GBPUSD', params=params, valid_till='')
+			NeuralNet.save(model_name)
 
-	if predict and model_name:
-		NeuralNet = load_model(model_name)
+	if predict:
+		if model_name:
+			NeuralNet = load_model(model_name)
+		elif not NeuralNet:
+			return
 		
-		predict_data   = get_data(training_data_src, price_index=1, headers=True)
-		pd_scaled      = sc.fit_transform(predict_data)
-		X_pred, y_pred = shape_data(pd_scaled, 60, 1)
+		if not train:
+			predict_data   = get_data(training_data_src, price_index=1, headers=True)
+			pd_scaled      = sc.fit_transform(predict_data)
+			X_pred, y_pred = shape_data(pd_scaled, window, params['increment'])
+		else:
+			X_pred, y_pred = X_train, y_train
 		
-		predictions = []
+		real_vals = []
+		pred_vals = []
+		perc_diff = []
+		
+		real_prev = predict_data[0]
 		
 		d_len = sum(1 for x in X_pred)
 		for n in range(d_len):
@@ -83,35 +97,38 @@ def main(train=True, save=True, predict=False, model_name=''):
 			pred = sc.inverse_transform(NeuralNet.predict(_X))[0][0]
 			real = sc.inverse_transform([[y_pred[n]]])[0][0]
 			
-			predictions.append([real, pred, (abs(real - pred) / real)*100])
+			if n != 0:
+				pred_diff = np.float32(pred) - np.float32(real_prev)
+				if pred_diff > 0:
+					profit_margin = pred_diff - 0.00046
+					if profit_margin > 0 and profit_margin > 0.0009:
+						print(real_prev, pred, profit_margin)
+				elif pred_diff < 0:
+					profit_margin = pred_diff + 0.00046
+					if profit_margin < 0 and profit_margin < -0.0009:
+						print(real_prev, pred, profit_margin)
+					
+				real_prev = real
+			
+			#real_vals.append(real)
+			#pred_vals.append(pred)
+			#perc_diff.append(real - pred)
+			
+		#print('min =', min(perc_diff))
+		#print('ave =', sum(p_diff for p_diff in perc_diff) / sum(1 for p in perc_diff))
+		#print('max =', max(perc_diff))
+		#print('dev =', stdev(perc_diff))
 		
-		for p in predictions:
-			print(p)
-		
-	return
+		if plot:
+			plot_prediction(_path="testing/results/graphs/GBPUSD_3600_60_2018-19_10yr.png", 
+							timestep=timestep, 
+							window=window, 
+							real_values=real_vals, 
+							pred_values=pred_vals, 
+							title="GBPUSD 2018-19", 
+							y_label="Price", 
+							x_label="Time")
 
-	pred = NeuralNet.predict(X_eval, verbose=1)
-	pred = sc.inverse_transform(pred)
-	
-	result = []
-
-	for x, p_real in enumerate(validate_data):
-		try:
-			p_pred = pred[x][0]
-		except IndexError:
-			p_pred = None
-		result.append([(x*5)+window, p_real[0], p_pred])
-		
-	log_results('../testing/results/pred.csv', 'a', results=result)
-	#plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.jpg", timestep=5, window=60, real_values=validate_data, pred_values=pred, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
-
-	for x in range(pred.size):
-		result.append([(x+1)*window*timestep, float(validate_data[(x+1)*window][0]), pred[x][0]])
-		
-	#log_results('../testing/results/pred.csv', 'a', results=result)
-	plot_prediction(path="../testing/results/graphs/GBPUSD 10-2016.png", timestep=timestep, window=window, results=result, title="GBPUSD 10-2016", y_label="Price", x_label="Time (s)")
-
-	
 	
 if __name__ == '__main__':
-	main(train=False, predict=True, model_name='GBPUSD_3600_60_20200101_.h5')
+	main()

@@ -1,8 +1,6 @@
 """
 NOTES
 - FRANN = Forex Recurrent Artificial Neural Network
-- model naming convention: <pair>_<timestep>_<window>_<validTill>.csv
-e.g. GBPUSD_3600_60_20200101.h5
 
 """
 
@@ -22,6 +20,8 @@ class FRANN_Operations(AIFX_Prod_Variables):
 	def __init__(self):
 		
 		AIFX_Prod_Variables.__init__(self)
+		
+		self.file_namer = FileNaming()
 		
 		self.max_data_offset = 0.05
 		
@@ -165,7 +165,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		dtime = datetime.datetime object
 		"""
 	
-		fname = self.output_dir + "_".join([epic_ccy, str(dtime.year), str(dtime.month), 'PRED', str(timestep)]) + '.csv'
+		fname = self.file_namer.predicted_data_filename(self.output_dir, epic_ccy, dtime, timestep)
 		
 		with open(fname, 'a') as csv_f:
 			csv_w = writer(csv_f, lineterminator='\n')
@@ -174,7 +174,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 	def predictor_loop(self):
 	
 		def utc_now():
-			#utc_now = datetime.utcnow().replace(second=0, microsecond=0)
 			return datetime.utcnow().replace(second=0, microsecond=0)
 		
 		t_prev = clock()
@@ -209,7 +208,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
 						if window_data == []:
 							continue
-						
 						window_data = sc.fit_transform(window_data)
 						window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
 						
@@ -223,8 +221,9 @@ class FRANN_Operations(AIFX_Prod_Variables):
 def main():
 	
 	run = FRANN_Operations()
-	
+
 	run.predictor_loop()
+	
 	
 if __name__ == '__main__':
 	main()

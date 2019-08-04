@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as pyplot
 
+from os import walk
 from sys import argv, exit
 from csv import reader, writer
 from time import clock
@@ -12,6 +13,42 @@ from keras.layers    import Dropout
 from keras.callbacks import Callback
 
 from sklearn.preprocessing import MinMaxScaler
+
+
+class FileNaming():
+	
+	def __init__(self):
+		self.project_root    = '../'
+		self.models_root     = 'dev_models/'
+		self.graphs_root     = 'model_data/graphs/'
+		
+		self.field_seperator = '_'
+	
+	def get_uid(self, ftype, check_str):
+		uid = -1
+		for _dir in walk(self.project_root):
+			if '.git' in _dir:
+				continue
+			for f in _dir[2]:
+				if f[-3:] == ftype:
+					f_mainbody = self.field_seperator.join(f.split(self.field_seperator)[:-1])
+					if check_str == f_mainbody:
+						uid += 1
+						
+		return str(uid + 1)
+	
+	def model_filename(self, epic='', params={'timestep': 3600, 'window': 60}, valid_till=''):
+		suffix     = '.h5'
+		fname_main = self.field_seperator.join([epic, str(params['timestep']), str(params['window']), str(valid_till)])
+		fname_uid  = self.get_uid(suffix, fname_main)
+		
+		fname = self.field_seperator.join([fname_main, fname_uid]) + suffix
+		
+		return self.models_root + fname
+	
+	def graph_filename(self, suffix):
+		
+		return
 
 
 def extract_training_set_timestep(data_file=''):
@@ -37,8 +74,7 @@ class TimeHistory(Callback):
 	def on_batch_end(self, batch, logs={}):
 		self.train_time += (clock() - self.train_start)
 		self.train_start = clock()
-		
-		
+			
 def get_data(src, price_index=1, headers=False):
 	# src: relative path to .csv file containing data.
 	# Return type: list, data is strings as found in csv.
@@ -65,7 +101,6 @@ def shape_data(data, window=5, increment=1):
 	
 	return (_X, _y)
 	
-	
 def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, loss_algo='mse', optimizer_algo='adam'):
 
 	regressor = Sequential()
@@ -85,14 +120,6 @@ def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, lo
 	regressor.compile(optimizer=optimizer_algo, loss=loss_algo)
 	
 	return regressor
-
-	
-def predict(data, RNN):
-	X_test = np.array(data)
-	X_test = np.reshape(X_predict, (X_predict.shape[0], X_predict.shape[1], 1))
-	
-	return RNN.predict(data)
-	
 	
 def forecast(data, RNN, fwd_steps=1):
 	X_predict = np.array([data])
@@ -121,19 +148,18 @@ def log_results(path='', mode='a', results=[]):
 
 			
 def plot_prediction(_path, timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label=""):
-	len_rv = len(real_values)
-	len_pv = pred_values.size
-	pyplot.plot(real_values, [x * timestep for x in range(len_rv)])
-	pyplot.plot(pred_values, [window + (x * timestep) for x in range(len_pv)])
+	#len_rv = len(real_values)
+	#len_pv = pred_values.size
+	pyplot.plot(real_values)#, [x * timestep for x in range(len_rv)])
+	pyplot.plot(pred_values)#, [window + (x * timestep) for x in range(len_pv)])
 	
-	pyplot.axis([0, timestep*len_rv, min(min(real_values), min(pred_values)), max(max(real_values), max(pred_values))])
+	#pyplot.axis([0, timestep*len_rv, min(min(real_values), min(pred_values)), max(max(real_values), max(pred_values))])
 	pyplot.title(title)
 	pyplot.ylabel(y_label)
 	pyplot.xlabel(x_label)
 	pyplot.legend(['Real', 'Predicted'], loc='upper right')
 	
 	pyplot.savefig(_path)
-
 	
-def build_filename(params):
-	return "DL%d-U%d-D%d-E%d-BS%d-t%d-w%d" % (params['DL'], params['U'], params['D'], params['E'], params['BS'], params['t'], params['w']) 
+x = FileNaming()
+print(x.model_filename(epic='GBPUSD', valid_till='20200101'))

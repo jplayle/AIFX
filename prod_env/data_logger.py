@@ -15,7 +15,7 @@ import traceback
 from smtplib import SMTP
 from email import message_from_string
 
-from AIFX_common_PROD import AIFX_Prod_Variables
+from AIFX_common_PROD import AIFX_Prod_Variables, FileNaming
 
 """
 NOTES etc
@@ -77,6 +77,8 @@ class IG_API(AIFX_Prod_Variables):
 	def __init__(self, comms=False):
 		
 		AIFX_Prod_Variables.__init__(self)
+		
+		self.file_namer = FileNaming()
 		
 		self.epic_data_array = {}
 		self.prev_data_array = {}
@@ -296,9 +298,9 @@ class IG_API(AIFX_Prod_Variables):
 		t_curr = row_0[1]
 		f_year = str(t_curr.year)  #file year
 		f_mon  = str(t_curr.month) #file month
-		fname  = "-".join([_epic_ccy, f_year, f_mon]) + '.csv'
 		
-		full_path = self.data_dir + '/' + _epic_ccy + '/' + fname
+		full_path = self.file_namer.historic_data_filename(self.data_dir, _epic_ccy, t_curr)
+		
 		if not path.exists(full_path):
 			write_headers = True
 		else:
@@ -543,7 +545,7 @@ class IG_API(AIFX_Prod_Variables):
 def	main():
 
 	broker = IG_API(comms=args['comms'])
-	
+
 	broker.login()
 
 	broker.data_stream()
