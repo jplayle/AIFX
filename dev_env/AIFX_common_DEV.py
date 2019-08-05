@@ -50,7 +50,23 @@ class FileNaming():
 		
 		return
 
+class Metrics():
 
+	def profit_margin(_pred, _real_prev, _ave_mag_diff, min_margin=0.0009, min_mag_diff=0, max_mag_diff=0):
+	
+		pred_diff = np.float32(pred) - np.float32(real_prev)
+		
+		if pred_diff > 0:
+			profit_margin = pred_diff - ave_mag_diff
+			if profit_margin > 0 and profit_margin > min_margin:
+				print(real_prev, pred, profit_margin)
+				
+		elif pred_diff < 0:
+			profit_margin = pred_diff + ave_mag_diff
+			if profit_margin < 0 and profit_margin < -min_margin:
+				print(real_prev, pred, profit_margin)
+		
+		
 def extract_training_set_timestep(data_file=''):
 	return int(data_file.split("_")[-1].replace('.csv', ''))
 
@@ -159,7 +175,6 @@ def plot_prediction(_path, timestep, window, real_values=[], pred_values=[], tit
 	pyplot.xlabel(x_label)
 	pyplot.legend(['Real', 'Predicted'], loc='upper right')
 	
+	pyplot.show()
 	pyplot.savefig(_path)
 	
-x = FileNaming()
-print(x.model_filename(epic='GBPUSD', valid_till='20200101'))

@@ -10,12 +10,13 @@ print("-- SLTM Neural Network: Forex training and testing environment.")
 from AIFX_common_DEV import *
 
 file_namer = FileNaming()
+metrics    = Metrics()
 
 from statistics import stdev
 
 # VARIABLES
-data_root_dir = r'/home/jhp/Dukascopy/'
-data_file     = r'GBPUSD_20190617-20190717_3600.csv'
+data_root_dir = r'C:\Git\AIFX\dev_env\training_data'
+data_file     = r'\GBPUSD_20180731-20190731_86400.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -23,20 +24,20 @@ batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      60,
+		  'window':      10,
 		  'increment':   1,
 		  'val_split':   0.05,
 		  'deep_layers': 0,
 		  'units':       80,
 		  'dropout':     0.2,
-		  'epochs':      40,
+		  'epochs':      1000,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
 		  'optimizer_algo': 'adam'
 		 }
 
 	
-def main(train=False, save=True, predict=True, plot=False, model_name='GBPUSD_3600_60_40.h5'):
+def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_86400_10__0.h5'):
 	
 	timestep = params['timestep']
 	window   = params['window']
@@ -85,11 +86,11 @@ def main(train=False, save=True, predict=True, plot=False, model_name='GBPUSD_36
 		
 		real_vals = []
 		pred_vals = []
-		perc_diff = []
+		pred_diff = []
 		
-		real_prev = predict_data[0]
+		real_prev = sc.inverse_transform([[y_pred[0]]])[0][0]
 		
-		d_len = sum(1 for x in X_pred)
+		d_len = sum(1 for x in X_pred) - 1
 		for n in range(d_len):
 			_X = X_pred[n]
 			_X = np.reshape(_X, (_X.shape[1], _X.shape[0], 1))
@@ -97,34 +98,25 @@ def main(train=False, save=True, predict=True, plot=False, model_name='GBPUSD_36
 			pred = sc.inverse_transform(NeuralNet.predict(_X))[0][0]
 			real = sc.inverse_transform([[y_pred[n]]])[0][0]
 			
-			if n != 0:
-				pred_diff = np.float32(pred) - np.float32(real_prev)
-				if pred_diff > 0:
-					profit_margin = pred_diff - 0.00046
-					if profit_margin > 0 and profit_margin > 0.0009:
-						print(real_prev, pred, profit_margin)
-				elif pred_diff < 0:
-					profit_margin = pred_diff + 0.00046
-					if profit_margin < 0 and profit_margin < -0.0009:
-						print(real_prev, pred, profit_margin)
-					
+			if n < d_len:
+				#metrics.profit_margin(_pred=pred, _real_prev=real_prev, _ave_mag_diff=0.0009)	
 				real_prev = real
+	
+			real_vals.append(real)
+			pred_vals.append(pred)
+			pred_diff.append(real - pred)
 			
-			#real_vals.append(real)
-			#pred_vals.append(pred)
-			#perc_diff.append(real - pred)
-			
-		#print('min =', min(perc_diff))
-		#print('ave =', sum(p_diff for p_diff in perc_diff) / sum(1 for p in perc_diff))
-		#print('max =', max(perc_diff))
-		#print('dev =', stdev(perc_diff))
+		print('min =', min(pred_diff))
+		print('ave =', sum(p_diff for p_diff in pred_diff) / sum(1 for p in pred_diff))
+		print('max =', max(pred_diff))
+		print('dev =', stdev(pred_diff))
 		
 		if plot:
-			plot_prediction(_path="testing/results/graphs/GBPUSD_3600_60_2018-19_10yr.png", 
+			plot_prediction(_path="model_data/graphs/GBPUSD_86400_10_2018-19_1yr.png", 
 							timestep=timestep, 
 							window=window, 
 							real_values=real_vals, 
-							pred_values=pred_vals, 
+							pred_values=pred_vals[1:], 
 							title="GBPUSD 2018-19", 
 							y_label="Price", 
 							x_label="Time")
