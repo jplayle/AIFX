@@ -4,7 +4,7 @@ NOTES
 
 """
 
-from os import listdir
+from os import listdir, mkdir, path
 from datetime import date, datetime, timedelta
 from time import clock, sleep
 
@@ -124,7 +124,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						w_len += 1
 						if w_len == window:
 							return window_data[::-1]
-					except TypeError:
+					except ValueError:
 							return []
 			
 				for x in range(window - w_len):					
@@ -140,7 +140,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 							w_len += 1
 							if w_len == window:
 								return window_data[::-1]
-						except TypeError:
+						except ValueError:
 							if data_point != '':
 								srch_newf   = True
 								x_prev      = data_point[1]
@@ -164,6 +164,10 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		- e.g.:    GBPUSD_2019_7_PRED_3600.csv
 		dtime = datetime.datetime object
 		"""
+		
+		folder_path = self.output_dir + epic_ccy
+		if not path.exists(folder_path):
+			os.mkdir(folder_path)
 	
 		fname = self.file_namer.predicted_data_filename(self.output_dir, epic_ccy, dtime, timestep)
 		

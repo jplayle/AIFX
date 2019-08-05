@@ -1,9 +1,8 @@
+user@hostname:
 ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com
 
 SSH/SCP via PuTTY on Windows:
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/putty.html?icmpid=docs_ec2_console
-
-pscp -i "C:\Git\AIFX\bin\AIFX_key.ppk" "C:\Git\AIFX\prod_env\data_logger.py" "ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/data_logger.py"
 
 Install SFTP for Ubuntu:
 https://help.ubuntu.com/lts/serverguide/ftp-server.html
@@ -16,9 +15,13 @@ Restart after updating vsftpd.conf:
 sudo systemctl restart vsftpd.service
 
 
-SCP Commands:
+SCP Commands
+Move Scripts:
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/AIFX_common_PROD.py ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env
 
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/data_logger.py ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env
 
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/predictor.py ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env
+
+Move Models:
+scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/models/*model name* ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/models
