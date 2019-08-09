@@ -15,8 +15,8 @@ metrics    = Metrics()
 from statistics import stdev
 
 # VARIABLES
-data_root_dir = r'C:\Git\AIFX\dev_env\training_data'
-data_file     = r'\GBPUSD_20180731-20190731_86400.csv'
+data_root_dir = r'/home/jhp/Git/AIFX/dev_env/training_data'
+data_file     = r'/GBPUSD_20180731-20190731_86400.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -37,7 +37,7 @@ params = {'timestep':    data_timestep,
 		 }
 
 	
-def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_86400_10__0.h5'):
+def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_86400_10_20190901_0.h5'):
 	
 	timestep = params['timestep']
 	window   = params['window']
