@@ -1,11 +1,57 @@
 import csv
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import style
 from time import (clock, sleep, time)
 from datetime import datetime, timedelta
-from datetime import time as dt_time
-import email
+#from datetime import time as dt_time
+from os import listdir
+#import email
 #import numpy as np
+
+from AIFX_common_PROD import *
+
+
+class HumanMachineInterface(AIFX_Prod_Variables):
+    
+    def __init__(self):
+        AIFX_Prod_Variables.__init__(self)
+		
+	def graphical_display(self, stationary=True, fwd_limit=None):
+		
+		style.use('seaborn')
+		
+		t_prev = clock()
+		
+		while True:
+			t_now = clock()
+			
+    		if t_now - t_prev >= self.pred_rate:
+				
+				for epic in self.target_epics:
+					fig = plt.figure(self.target_epics.index(epic)+1)
+					ax1 = fig.add_subplot(1,1,1)
+					
+					max_tstep = 0
+					
+					for model_file in os.listdir(self.model_dir):
+						model_params = model_file.split('_')
+						
+						epic_ccy = model_params[0]
+						timestep = int(model_params[1])
+						if timestep > max_tstep:
+							max_tstep = timestep
+						window   = int(model_params[2]) 
+						
+					nrows_historic = max_tstep / self.data_interval_sec
+					
+					historic_data_path = self.data_dir + epic_ccy
+					historic_data_file = historic_data_path + '/' + sorted(listdir(historic_data_path))[-1]
+					df = pd.read_csv(historic_data_file, nrows=nrows_historic, index_col = "DATETIME", parse_dates=True)
+            		ax1.plot(df, label = 'Historic Data')
+					
+				
+
 
 class Indicators():
 
