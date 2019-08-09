@@ -37,7 +37,7 @@ params = {'timestep':    data_timestep,
 		 }
 
 	
-def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_86400_10__0.h5'):
+def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_86400_10_20190901_0.h5'):
 	
 	timestep = params['timestep']
 	window   = params['window']
