@@ -29,7 +29,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
     		if t_now - t_prev >= self.pred_rate:
 				
 				for epic in self.target_epics:
-					fig = plt.figure(target_epics.index(epic)+1)
+					fig = plt.figure(self.target_epics.index(epic)+1)
 					ax1 = fig.add_subplot(1,1,1)
 					
 					max_tstep = 0
