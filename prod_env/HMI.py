@@ -18,6 +18,11 @@ class HumanMachineInterface(AIFX_Prod_Variables):
         AIFX_Prod_Variables.__init__(self)
 		
 	def graphical_display(self, stationary=True, fwd_limit=None):
+		"""
+		End goal:
+		- plot up to max timestep into the future
+		- add min & max deviations
+		"""
 		
 		style.use('seaborn')
 		
