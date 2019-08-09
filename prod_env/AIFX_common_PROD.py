@@ -43,6 +43,33 @@ class AIFX_Prod_Variables():
 		self.pred_rate  = self.data_interval_sec
 		
 		self.pred_data_index = 2 #column for data extraction
+		
+		def load_models(self):
+			"""
+			- check how big FRANN will be - can they all be held in RAM?
+			If not, must load models individually if a large number are to be used.
+			Make sure to be using the bare bones NN - toggle off the optimizer state.
+			"""
+			self.model_store = {epic[5:11]: {} for epic in self.target_epics}
+			
+			for model_file in listdir(self.model_dir):
+				model_params = model_file.replace('.h5', '').split('_')
+				
+				epic_ccy   = model_params[0]
+				timestep   = int(model_params[1])
+				window     = int(model_params[2])
+				ave_diff   = float(model_params[3].replace('#', '.'))
+				stdev_diff = float(model_params[4].replace('#', '.'))
+				
+				valid_till = model_params[5]
+				valid_till = date(int(valid_till[:4]), int(valid_till[4:6]), int(valid_till[6:8]))
+				
+				self.model_store[epic_ccy][timestep] = {'FRANN':      self.model_dir + model_file,
+														'window':     window,
+														'valid_till': valid_till,
+														'err_ave':    ave_diff,
+														'err_stdev':  stdev_diff
+														}
 	
 class FileNaming():
 

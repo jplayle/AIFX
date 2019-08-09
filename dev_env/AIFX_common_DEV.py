@@ -37,9 +37,17 @@ class FileNaming():
 						
 		return str(uid + 1)
 	
-	def model_filename(self, epic='', params={'timestep': 3600, 'window': 60}, valid_till=''):
-		suffix     = '.h5'
-		fname_main = self.field_seperator.join([epic, str(params['timestep']), str(params['window']), str(valid_till)])
+	def model_filename(self, epic, timestep, window, ave_diff, stdev_diff, valid_till=''):
+		suffix = '.h5'
+		
+		fields = []
+		fields.append(str(timestep))
+		fields.append(str(window))
+		fields.append(str(ave_diff).replace('.', '#'))
+		fields.append(str(stdev_diff).replace('.', '#'))
+		fields.append(str(valid_till))
+		
+		fname_main = self.field_seperator.join([epic] + fields)
 		fname_uid  = self.get_uid(suffix, fname_main)
 		
 		fname = self.field_seperator.join([fname_main, fname_uid]) + suffix

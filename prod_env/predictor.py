@@ -27,28 +27,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		
 		self.load_models()
 		
-	def load_models(self):
-		"""
-		- check how big FRANN will be - can they all be held in RAM?
-		If not, must load models individually if a large number are to be used.
-		Make sure to be using the bare bones NN - toggle off the optimizer state.
-		"""
-		self.model_store = {epic[5:11]: {} for epic in self.target_epics}
-		
-		for model_file in listdir(self.model_dir):
-			model_params = model_file.replace('.h5', '').split('_')
-			
-			epic_ccy   = model_params[0]
-			timestep   = int(model_params[1])
-			window     = int(model_params[2])
-			valid_till = model_params[3]
-			valid_till = date(int(valid_till[:4]), int(valid_till[4:6]), int(valid_till[6:8]))
-			
-			self.model_store[epic_ccy][timestep] = {'FRANN':      load_model(self.model_dir + model_file),
-													'window':     window,
-													'valid_till': valid_till
-													}
-		
 	def build_window_data(self, epic_ccy='', timestep=0, window=0, t_start=None):
 		"""
 		- open relevant epic data file
@@ -203,23 +181,25 @@ class FRANN_Operations(AIFX_Prod_Variables):
 							#don't use models that are deemed out of date
 							#send warning that model needs updating
 							continue
+							
+						pred_time  = t_start + timedelta(seconds=timestep)
 						
-						FRANN  = model_dict['FRANN']
+						FRANN  = load_model(model_dict['FRANN'])
 						window = model_dict['window']
 						
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
-						if window_data == []:
-							continue
-						window_data = sc.fit_transform(window_data)
-						window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
-						
-						prediction = FRANN.predict(window_data)
-						pred_price = sc.inverse_transform(prediction)[0][0]
-						pred_time  = t_start + timedelta(seconds=timestep)
-						
-						self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
+						if window_data != []:
+							window_data = sc.fit_transform(window_data)
+							window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
+							
+							prediction = FRANN.predict(window_data)
+							pred_price = sc.inverse_transform(prediction)[0][0]
+							
+							self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
+						else:
+							self.write_prediction(epic_ccy, timestep, pred_time, [''])
 
 	
 def main():

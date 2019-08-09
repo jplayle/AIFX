@@ -12,10 +12,13 @@ from os import listdir
 from AIFX_common_PROD import *
 
 
+
 class HumanMachineInterface(AIFX_Prod_Variables):
-    
-    def __init__(self):
-        AIFX_Prod_Variables.__init__(self)
+	
+	def __init__(self):
+		AIFX_Prod_Variables.__init__(self)
+		
+		self.load_models(self)
 		
 	def graphical_display(self, stationary=True, fwd_limit=None):
 		"""
@@ -31,7 +34,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		while True:
 			t_now = clock()
 			
-    		if t_now - t_prev >= self.pred_rate:
+			if t_now - t_prev >= self.pred_rate:
 				
 				for epic in self.target_epics:
 					fig = plt.figure(self.target_epics.index(epic)+1)
@@ -46,40 +49,39 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 						timestep = int(model_params[1])
 						if timestep > max_tstep:
 							max_tstep = timestep
-						window   = int(model_params[2]) 
+						avg = int(model_params[3]) 
+						stdev = int(model_params[4])						
 						
 					nrows_historic = max_tstep / self.data_interval_sec
 					
 					historic_data_path = self.data_dir + epic_ccy
 					historic_data_file = historic_data_path + '/' + sorted(listdir(historic_data_path))[-1]
 					df = pd.read_csv(historic_data_file, nrows=nrows_historic, index_col = "DATETIME", parse_dates=True)
-            		ax1.plot(df, label = 'Historic Data')
-					
-				
+					ax1.plot(df, label = 'Historic Data')
 
 
 class Indicators():
 
-    #Currencies to analyse
-    crypto_epics = ["CS.D.BITCOIN.CFD.IP", "CS.D.ETHUSD.CFD.IP", "CS.D.LTCUSD.CFD.IP", "CS.D.XRPUSD.CFD.IP"]
+	#Currencies to analyse
+	crypto_epics = ["CS.D.BITCOIN.CFD.IP", "CS.D.ETHUSD.CFD.IP", "CS.D.LTCUSD.CFD.IP", "CS.D.XRPUSD.CFD.IP"]
 	fiat_epics   = ["CS.D.GBPUSD.CFD.IP", "CS.D.USDJPY.CFD.IP", "CS.D.EURGBP.CFD.IP", "CS.D.EURJPY.CFD.IP", "CS.D.EURUSD.CFD.IP", "CS.D.GBPJPY.CFD.IP",	\
 					"CS.D.AUDJPY.CFD.IP", "CS.D.AUDUSD.CFD.IP", "CS.D.AUDCAD.CFD.IP", "CS.D.USDCAD.CFD.IP", "CS.D.NZDUSD.CFD.IP", "CS.D.NZDJPY.CFD.IP",	\
 					"CS.D.AUDEUR.CFD.IP", "CS.D.AUDGBP.CFD.IP", "CS.D.CADJPY.CFD.IP", "CS.D.NZDGBP.CFD.IP", "CS.D.NZDEUR.CFD.IP", "CS.D.NZDCAD.CFD.IP"]
 	target_epics = fiat_epics + crypto_epics
-    
-    #Indicators to document
-  	targ_fields  = ["VAL_ERR", "PERC_VAL_ERR", "DELTA_VAL_ERR", "PERC_DELTA_VAL_ERR", "STAND_DEV", "BOXPLOT", "DIRECTION"]
-    
-    #Read in prediction
-    df = pd.read_csv('pred.csv',sep='\t')
+	
+	#Indicators to document
+	targ_fields  = ["VAL_ERR", "PERC_VAL_ERR", "DELTA_VAL_ERR", "PERC_DELTA_VAL_ERR", "STAND_DEV", "BOXPLOT", "DIRECTION"]
+	
+	#Read in prediction
+	df = pd.read_csv('pred.csv',sep='\t')
 
-    #Create dataset from whatever columns you are interested in 
-    pred = df[['DATETIME','PRED']]
-    
-    #Live dataset created in same way as predicted for now, will need to be live updating in future
-    live = df[['DATETIME','LIVE']]
-        
-    def startup_sequence(self):
+	#Create dataset from whatever columns you are interested in 
+	pred = df[['DATETIME','PRED']]
+	
+	#Live dataset created in same way as predicted for now, will need to be live updating in future
+	live = df[['DATETIME','LIVE']]
+		
+	def startup_sequence(self):
 		"""
 		1. Check if data files exist and retrieve previous update time from the last row if they do
 		2. Write necessary number of blank rows based on difference between previous time from step 1 and the account time now
@@ -119,111 +121,111 @@ class Indicators():
 				self.updates_t_array[epic]['PREV'] = self.write_data(epic[5:11], data_array)
 			else:
 				self.updates_t_array[epic]['PREV'] = LUT - timedelta(minutes=self.interval_val)
-        
-    def value_accuracy(self): #Add time values in future (start/end datetime you are interested in)
-        #Initialise arrays
-        val_err = []
-        abs_val_err = []
-        perc_err = []
-        
-        #Check DATETIME is the same in both prediction and live datasets
-        for i in self.pred['DATETIME']:
-            for j in self.live['DATETIME']:
-                if i == j:
-        
-                    #Find difference between predicted and live datsets/ add to array
-                    val_err = val_err + [self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
-                    self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]]
-                    
-                    #Find magnitude of difference between predicted and live datsets/ add to array
-                    abs_val_err = abs_val_err + [abs(self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
-                    self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0])]
-                    
-                    #Find magnitude of % difference between predicted and live datsets/ add to array               
-                    perc_err = perc_err + [100*abs((self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
-                    self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0])/\
-                    self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0])]
-        
-        #Calculate indication metrics
-        cum_val_err = sum(abs_val_err)
-        avg_val_err = cum_val_err/len(val_err)
-        cum_perc_err = sum(perc_err)
-        avg_perc_err = cum_perc_err/len(perc_err)
-        print("Cumulative value error is: " + str(cum_val_err))
-        print("Average value error is: " + str(avg_val_err))
-        print("Average value percentage error is: " + str(avg_perc_err)+"%")
-        plt.plot(perc_err)
-        plt.show()
-        
-    def delta_value_accuracy(self): #Add time values in future (start/end datetime you are interested in)
-    
-        #Initialise arrays
-        val_err = []
-        abs_val_err = []
-        perc_err = []
-        
-        #Check DATETIME is the same in both prediction and live datasets
-        for i in self.pred['DATETIME']:
-            for j in self.live['DATETIME']:
-                if i == j:
-                
-                    #Skip first row as there can be no delta with only on value
-                    if i == self.pred['DATETIME'].min():
-                        pass
-                    else:
-                    
-                        #Find difference between predicted and live datsets/ add to array
-                        val_err = val_err + [(self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
-                        self.pred.loc[self.pred['DATETIME'].shift(-1) == i]['PRED'].values[0])-\
-                        (self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
-                        self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0])]
-         
-                        #Find magnitude of difference between predicted and live datsets/ add to array
-                        abs_val_err = abs_val_err + [abs((self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
-                        self.pred.loc[self.pred['DATETIME'].shift(-1) == i]['PRED'].values[0])-\
-                        (self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
-                        self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0]))]
+		
+	def value_accuracy(self): #Add time values in future (start/end datetime you are interested in)
+		#Initialise arrays
+		val_err = []
+		abs_val_err = []
+		perc_err = []
+		
+		#Check DATETIME is the same in both prediction and live datasets
+		for i in self.pred['DATETIME']:
+			for j in self.live['DATETIME']:
+				if i == j:
+		
+					#Find difference between predicted and live datsets/ add to array
+					val_err = val_err + [self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
+					self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]]
+					
+					#Find magnitude of difference between predicted and live datsets/ add to array
+					abs_val_err = abs_val_err + [abs(self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
+					self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0])]
+					
+					#Find magnitude of % difference between predicted and live datsets/ add to array               
+					perc_err = perc_err + [100*abs((self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
+					self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0])/\
+					self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0])]
+		
+		#Calculate indication metrics
+		cum_val_err = sum(abs_val_err)
+		avg_val_err = cum_val_err/len(val_err)
+		cum_perc_err = sum(perc_err)
+		avg_perc_err = cum_perc_err/len(perc_err)
+		print("Cumulative value error is: " + str(cum_val_err))
+		print("Average value error is: " + str(avg_val_err))
+		print("Average value percentage error is: " + str(avg_perc_err)+"%")
+		plt.plot(perc_err)
+		plt.show()
+		
+	def delta_value_accuracy(self): #Add time values in future (start/end datetime you are interested in)
+	
+		#Initialise arrays
+		val_err = []
+		abs_val_err = []
+		perc_err = []
+		
+		#Check DATETIME is the same in both prediction and live datasets
+		for i in self.pred['DATETIME']:
+			for j in self.live['DATETIME']:
+				if i == j:
+				
+					#Skip first row as there can be no delta with only on value
+					if i == self.pred['DATETIME'].min():
+						pass
+					else:
+					
+						#Find difference between predicted and live datsets/ add to array
+						val_err = val_err + [(self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
+						self.pred.loc[self.pred['DATETIME'].shift(-1) == i]['PRED'].values[0])-\
+						(self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
+						self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0])]
+		 
+						#Find magnitude of difference between predicted and live datsets/ add to array
+						abs_val_err = abs_val_err + [abs((self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
+						self.pred.loc[self.pred['DATETIME'].shift(-1) == i]['PRED'].values[0])-\
+						(self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
+						self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0]))]
 
-                        #Check to see if percentage calculation is dividing by 0 
-                        #NOTE: In such cases % error has been set to 0. need to reconsider in future
-                        if self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
-                        self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0]==0:
-                            perc_err = perc_err + [0]
-                        else:
+						#Check to see if percentage calculation is dividing by 0 
+						#NOTE: In such cases % error has been set to 0. need to reconsider in future
+						if self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
+						self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0]==0:
+							perc_err = perc_err + [0]
+						else:
 
-                            #Find magnitude of % difference between predicted and live datsets/ add to array               
-                            perc_err = perc_err + [100*abs(((self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
-                            self.pred.loc[self.pred['DATETIME'].shift(-1) == i]['PRED'].values[0])-\
-                            (self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
-                            self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0]))/\
-                            (self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
-                            self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0]))]
-                        
-        #Calculate indication metrics
-        cum_val_err = sum(abs_val_err)
-        avg_val_err = cum_val_err/len(val_err)
-        cum_perc_err = sum(perc_err)
-        avg_perc_err = cum_perc_err/len(perc_err)
-        print("Cumulative delta value error is: " + str(cum_val_err))
-        print("Average delta value error is: " + str(avg_val_err))
-        print("Average delta percentage error is: " + str(avg_perc_err)+"%")
-        plt.plot(perc_err)
-        plt.show()
-        
-       
-    # def standard_dev(self)
-        # a
+							#Find magnitude of % difference between predicted and live datsets/ add to array               
+							perc_err = perc_err + [100*abs(((self.pred.loc[self.pred['DATETIME'] == i]['PRED'].values[0]-\
+							self.pred.loc[self.pred['DATETIME'].shift(-1) == i]['PRED'].values[0])-\
+							(self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
+							self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0]))/\
+							(self.live.loc[self.live['DATETIME'] == i]['LIVE'].values[0]-\
+							self.live.loc[self.live['DATETIME'].shift(-1) == i]['LIVE'].values[0]))]
+						
+		#Calculate indication metrics
+		cum_val_err = sum(abs_val_err)
+		avg_val_err = cum_val_err/len(val_err)
+		cum_perc_err = sum(perc_err)
+		avg_perc_err = cum_perc_err/len(perc_err)
+		print("Cumulative delta value error is: " + str(cum_val_err))
+		print("Average delta value error is: " + str(avg_val_err))
+		print("Average delta percentage error is: " + str(avg_perc_err)+"%")
+		plt.plot(perc_err)
+		plt.show()
+		
+	   
+	# def standard_dev(self)
+		# a
 
-    # def boxplot(self)
-        # a
+	# def boxplot(self)
+		# a
 
-    # def direction(self)
-        # a
+	# def direction(self)
+		# a
 
-    # def gain_v_loss(self)
-        # 
-        
-    def write_data(self, _epic_ccy, _data):
+	# def gain_v_loss(self)
+		# 
+		
+	def write_data(self, _epic_ccy, _data):
 		"""
 		- recurrent function: writes data assigning file name based on datetime of update as 'epic-year-month.csv'
 		- returns LUT (last update time) so when write_data() is called by startup_sequence() it can be used to set self.updates_t_array[epic]['PREV']
@@ -260,9 +262,9 @@ class Indicators():
 					_data.remove(r)
 					
 		return LUT
-        
-        
-    def read_data(self, _epic_ccy, _data):
+		
+		
+	def read_data(self, _epic_ccy, _data):
 		"""
 		- recurrent function: writes data assigning file name based on datetime of update as 'epic-year-month.csv'
 		- returns LUT (last update time) so when write_data() is called by startup_sequence() it can be used to set self.updates_t_array[epic]['PREV']
@@ -299,16 +301,14 @@ class Indicators():
 					_data.remove(r)
 					
 		return LUT
-            
-        
+			
+		
 def main():
 
-    indicators = Indicators()
+	HMI = HumanMachineInterface()
 
-    indicators.value_accuracy()
-    
-    indicators.delta_value_accuracy()
+	HMI.graphical_display()
 
-    
+	
 if __name__	== '__main__':
 	main()
