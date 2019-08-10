@@ -1,5 +1,6 @@
 import csv
 import pandas as pd
+import pickle
 
 import matplotlib.pyplot as plt
 from matplotlib import style
@@ -13,8 +14,6 @@ from datetime import datetime, timedelta
 #import numpy as np
 
 from AIFX_common_PROD import *
-
-
 
 class HumanMachineInterface(AIFX_Prod_Variables):
 	
@@ -133,6 +132,9 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 					
 					ordered_tsteps = sorted([t for t in timestep_dict]) 
 					
+					fig = plt.figure()#target_epics.index(epic)+1)
+					ax1 = fig.add_subplot(1,1,1)
+					
 					for timestep in ordered_tsteps:
 						model_dict = timestep_dict[timestep]
 						
@@ -143,9 +145,9 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 						
 						X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, ave_err, stdev_err, n_stdev)
 						
-						plt.plot(X_pred, Y_pred)
-						plt.plot(X_pred, U_pred)
-						plt.plot(X_pred, L_pred)
+						ax1.plot(X_pred, Y_pred, label = str(int(timestep)/3600)[:-2]+" hour timestep")
+						ax1.plot(X_pred, U_pred, linestyle = ":", color = "red", linewidth = "0.5")
+						ax1.plot(X_pred, L_pred, linestyle = ":", color = "red", linewidth = "0.5")
 						
 						pred_data_tstart = new_tstart
 					
@@ -153,11 +155,20 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 					
 					X_hist, Y_hist = self.get_real_plot_data(epic_ccy, nrows=nrows_historic)
 					
-					plt.plot(X_hist, Y_hist)
-					plt.show()
+					ax1.plot(X_hist, Y_hist, "black", label = "Historic")
 					
-
-
+					#FORMAT PLOT
+					plt.legend()
+					plt.title(epic_ccy)
+					plt.xlabel('Time')
+					plt.ylabel('Price')   
+					
+					plt.show()
+					    
+					#SAVE PLOT LIVE
+					#pickle.dump(ax1, open(self.output_dir+epic_ccy+'/'+epic_ccy+'_Graph'+'.pickle', "wb"))
+					plt.clf()
+					
 			
 class Indicators():
 
