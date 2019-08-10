@@ -5,7 +5,7 @@ NOTES
 """
 
 from os import listdir, mkdir, path
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 from time import clock, sleep
 
 import numpy as np
@@ -178,8 +178,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 				
 					for timestep, model_dict in self.model_store[epic_ccy].items():
 						if today > model_dict['valid_till']:
-							#don't use models that are deemed out of date
-							#send warning that model needs updating
 							continue
 							
 						pred_time  = t_start + timedelta(seconds=timestep)
