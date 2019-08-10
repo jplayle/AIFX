@@ -1,7 +1,10 @@
 import csv
 import pandas as pd
+
 import matplotlib.pyplot as plt
 from matplotlib import style
+from matplotlib.widgets import Cursor
+
 from time import (clock, sleep, time)
 from datetime import datetime, timedelta
 #from datetime import time as dt_time
@@ -30,22 +33,77 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 		for data_file in sorted(listdir(fpath))[::-1]:
 			
-			with open(fpath + '/' + data_file) as csv_f:
+			with open(fpath + '/' + data_file, 'r') as csv_f:
 				csv_r = list(reader(csv_f))[::-1]
 				csv_r.pop(-1)
 				
 				for r in range(nrows - len_d):
 					try:
 						data_row = csv_r[r]
+						
 						prices.append(float(data_row[self.pred_data_index]))
 						times.append(datetime.strptime(data_row[1], '%Y-%m-%d %H:%M:%S'))
+						
 						len_d += 1
 					except IndexError:
-						return (times, prices)
+						break
 					except ValueError:
 						continue
 		
-		return (times, prices)
+		return (times[::-1], prices[::-1])
+	
+	def get_pred_plot_data(self, _epic_ccy, _timestep, dt_start, _ave_err=0, _stdev_err=0, _n_stdev=1):
+		
+		fpath = self.output_dir + _epic_ccy
+		
+		times  = []
+		prices = []
+		u_band = []
+		l_band = []
+		len_d  = 0
+		dt_end = datetime.utcnow()
+		
+		upper_tol = _ave_err + (_stdev_err * _n_stdev)
+		lower_tol = _ave_err - (_stdev_err * _n_stdev)
+		
+		data_files = []
+		
+		for file in listdir(fpath):
+			file_params = file.split('_')
+			
+			file_year  = int(file_params[1])
+			file_month = int(file_params[2])
+			
+			if file_year == dt_start.year and file_month == dt_start.month:
+				file_tstep = int(file_params[-1].replace('.csv', ''))
+				if file_tstep == _timestep:
+					data_files.append(file)
+					
+		data_files = sorted(data_files)
+		
+		for df in data_files:
+			with open(fpath + '/' + df, 'r') as csv_f:
+				csv_r = list(reader(csv_f))
+				dt_end = dt_start + timedelta(seconds=_timestep)
+							
+				for data_row in csv_r:
+					dt = datetime.strptime(data_row[0], '%Y-%m-%d %H:%M:%S')
+					if dt >= dt_start and dt < dt_end:
+						try:
+							price = float(data_row[1])
+							prices.append(price)
+							u_band.append(price + upper_tol)
+							l_band.append(price + lower_tol)
+
+							times.append(dt)
+
+							len_d += 1
+						except IndexError:
+							break
+						except ValueError:
+							continue
+		
+		return (times[::-1], prices[::-1], u_band[::-1], l_band[::-1], dt_end)
 		
 	def graphical_display(self, real_lim=0, pred_lim=0, n_stdev=1):
 		"""
@@ -62,7 +120,8 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 			t_now = clock()
 			
 			if t_now - t_prev >= 10:#self.pred_rate:
-				t_prev  = t_now
+				t_prev = t_now
+				dt_now = (datetime.utcnow() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0)
 				
 				for epic_ccy, timestep_dict in self.model_store.items():
 					if not timestep_dict:
@@ -70,11 +129,25 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 					#fig       = plt.figure(self.target_epics.index(epic)+1)
 					max_tstep = 0
 					
-					for timestep, model_dict in timestep_dict.items():
+					pred_data_tstart = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S')
+					
+					ordered_tsteps = sorted([t for t in timestep_dict]) 
+					
+					for timestep in ordered_tsteps:
+						model_dict = timestep_dict[timestep]
+						
 						ave_err   = float(model_dict['err_ave']) 
 						stdev_err = float(model_dict['err_stdev'])
 						if timestep > max_tstep:
 							max_tstep = timestep
+						
+						X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, ave_err, stdev_err, n_stdev)
+						
+						plt.plot(X_pred, Y_pred)
+						plt.plot(X_pred, U_pred)
+						plt.plot(X_pred, L_pred)
+						
+						pred_data_tstart = new_tstart
 					
 					nrows_historic = int(max_tstep / self.data_interval_sec)
 					

@@ -45,6 +45,8 @@ class AIFX_Prod_Variables():
 		
 		self.pred_data_index = 2 #column for data extraction
 		
+		self.data_written_buffer = 2 #shift prediction time back n rows so it's guaranteed all data for that timestamp will have been written 
+		
 	def load_models(self):
 		"""
 		- check how big FRANN will be - can they all be held in RAM?

@@ -156,7 +156,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 	def predictor_loop(self):
 	
 		def utc_now():
-			return datetime.utcnow().replace(second=0, microsecond=0)
+			return datetime.utcnow()
 		
 		t_prev = clock()
 		
@@ -165,7 +165,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 			t_now = clock()
 
 			if t_now - t_prev >= self.pred_rate:
-				t_start = utc_now() - timedelta(seconds=self.data_interval_sec * 2)
+				t_start = (utc_now() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0)
 				today   = date.today()
 				t_prev  = t_now
 

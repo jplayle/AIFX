@@ -25,3 +25,8 @@ scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/predictor.py ubuntu@ec2-3
 
 Move Models:
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/models/*model name* ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/models
+
+Get Data:
+scp -i ~/Git/AIFX/bin/AIFX_key.pem ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/historic_data/GBPUSD/* ~/Git/AIFX/prod_env/historic_data/GBPUSD
+
+scp -i ~/Git/AIFX/bin/AIFX_key.pem ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/predicted_data/GBPUSD/* ~/Git/AIFX/prod_env/predicted_data/GBPUSD
