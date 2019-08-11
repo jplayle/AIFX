@@ -171,7 +171,7 @@ def log_results(path='', mode='a', results=[]):
 			csv_w.writerow([i for i in r])
 
 			
-def plot_prediction(_path, timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label=""):
+def plot_prediction(timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label="", path=''):
 	#len_rv = len(real_values)
 	#len_pv = pred_values.size
 	pyplot.plot(real_values)#, [x * timestep for x in range(len_rv)])
@@ -184,5 +184,6 @@ def plot_prediction(_path, timestep, window, real_values=[], pred_values=[], tit
 	pyplot.legend(['Real', 'Predicted'], loc='upper right')
 	
 	pyplot.show()
-	pyplot.savefig(_path)
 	
+	if path:
+		pyplot.savefig(_path)

@@ -84,6 +84,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 				j = 0
 				if initiate:
 					for r in csv_r[::-1]:
+						break
 						data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
 						if data_time == t_start:
 							r_skip_newf = j
@@ -115,6 +116,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						try:
 							float(data_point)
 							window_data.append([data_point])
+							print(w_len, csv_r[i])
 							w_len += 1
 							if w_len == window:
 								return window_data[::-1]
@@ -164,7 +166,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 			
 			t_now = clock()
 
-			if t_now - t_prev >= self.pred_rate:
+			if t_now - t_prev >= 10:#self.pred_rate:
 				t_start = (utc_now() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0)
 				today   = date.today()
 				t_prev  = t_now
@@ -177,6 +179,9 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						pass
 				
 					for timestep, model_dict in self.model_store[epic_ccy].items():
+						if timestep != 3600: ##########
+							continue
+							
 						if today > model_dict['valid_till']:
 							continue
 							
@@ -188,6 +193,8 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
+						print(len(window_data))
+						sleep(1000)
 						if window_data != []:
 							window_data = sc.fit_transform(window_data)
 							window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))

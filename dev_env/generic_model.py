@@ -15,8 +15,8 @@ metrics    = Metrics()
 from statistics import stdev
 
 # VARIABLES
-data_root_dir = r'/home/jhp/Git/AIFX/dev_env/training_data'
-data_file     = r'/GBPUSD_20180731-20190731_86400.csv'
+data_root_dir = '/home/jhp/Dukascopy/'
+data_file     = 'GBPUSD_20180717-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -24,7 +24,7 @@ batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      10,
+		  'window':      60,
 		  'increment':   1,
 		  'val_split':   0.05,
 		  'deep_layers': 0,
@@ -37,7 +37,7 @@ params = {'timestep':    data_timestep,
 		 }
 
 	
-def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_86400_10_20190901_0.h5'):
+def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_3600_60_40.h5'):
 	
 	timestep = params['timestep']
 	window   = params['window']
@@ -97,14 +97,14 @@ def main(train=False, save=True, predict=True, plot=True, model_name='dev_models
 			
 			pred = sc.inverse_transform(NeuralNet.predict(_X))[0][0]
 			real = sc.inverse_transform([[y_pred[n]]])[0][0]
-			
-			if n < d_len:
-				#metrics.profit_margin(_pred=pred, _real_prev=real_prev, _ave_mag_diff=0.0009)	
-				real_prev = real
 	
 			real_vals.append(real)
 			pred_vals.append(pred)
 			pred_diff.append(real - pred)
+			
+			if n < d_len:
+				#metrics.profit_margin(_pred=pred, _real_prev=real_prev, _ave_mag_diff=0.0009)	
+				real_prev = real
 			
 		print('min =', min(pred_diff))
 		print('ave =', sum(p_diff for p_diff in pred_diff) / sum(1 for p in pred_diff))
@@ -112,12 +112,11 @@ def main(train=False, save=True, predict=True, plot=True, model_name='dev_models
 		print('dev =', stdev(pred_diff))
 		
 		if plot:
-			plot_prediction(_path="model_data/graphs/GBPUSD_86400_10_2018-19_1yr.png", 
-							timestep=timestep, 
+			plot_prediction(timestep=timestep, 
 							window=window, 
 							real_values=real_vals, 
-							pred_values=pred_vals[1:], 
-							title="GBPUSD 2018-19", 
+							pred_values=pred_vals, 
+							title="GBPUSD", 
 							y_label="Price", 
 							x_label="Time")
 

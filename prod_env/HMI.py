@@ -59,8 +59,8 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		l_band = []
 		len_d  = 0
 		
-		upper_tol = _ave_err + (_stdev_err * _n_stdev)
-		lower_tol = _ave_err - (_stdev_err * _n_stdev)
+		upper_tol = (_stdev_err * _n_stdev)  # + _ave_err
+		lower_tol = - (_stdev_err * _n_stdev)# + _ave_err
 		
 		data_files = []
 		
