@@ -1,4 +1,3 @@
-import csv
 import pandas as pd
 import pickle
 
@@ -8,10 +7,6 @@ from matplotlib.widgets import Cursor
 
 from time import (clock, sleep, time)
 from datetime import datetime, timedelta
-#from datetime import time as dt_time
-#from os import listdir
-#import email
-#import numpy as np
 
 from AIFX_common_PROD import *
 
@@ -51,7 +46,10 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 		return (times[::-1], prices[::-1])
 	
-	def get_pred_plot_data(self, _epic_ccy, _timestep, dt_start, _ave_err=0, _stdev_err=0, _n_stdev=1):
+	def get_pred_plot_data(self, _epic_ccy, _timestep, dt_start, dt_end=None, _ave_err=0, _stdev_err=0, _n_stdev=1):
+		
+		if not dt_end:
+			dt_end = dt_start + timedelta(seconds=_timestep)
 		
 		fpath = self.output_dir + _epic_ccy
 		
@@ -60,7 +58,6 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		u_band = []
 		l_band = []
 		len_d  = 0
-		dt_end = datetime.utcnow()
 		
 		upper_tol = _ave_err + (_stdev_err * _n_stdev)
 		lower_tol = _ave_err - (_stdev_err * _n_stdev)
@@ -82,12 +79,10 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 		for df in data_files:
 			with open(fpath + '/' + df, 'r') as csv_f:
-				csv_r = list(reader(csv_f))
-				dt_end = dt_start + timedelta(seconds=_timestep)
-							
+				csv_r = reader(csv_f)
 				for data_row in csv_r:
 					dt = datetime.strptime(data_row[0], '%Y-%m-%d %H:%M:%S')
-					if dt >= dt_start and dt < dt_end:
+					if dt > dt_start and dt <= dt_end:
 						try:
 							price = float(data_row[1])
 							prices.append(price)
@@ -103,6 +98,13 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 							continue
 		
 		return (times[::-1], prices[::-1], u_band[::-1], l_band[::-1], dt_end)
+	
+	def int_to_RGB(self, integer):
+		""" Takes an integer value and converts it to a tuple of floats representing an RGB colour value. """
+		blue  = (integer & 255) / 255
+		green = ((integer >> 8) & 255) / 255
+		red   = ((integer >> 16) & 255) / 255
+		return (red, green, blue)
 		
 	def graphical_display(self, real_lim=0, pred_lim=0, n_stdev=1):
 		"""
@@ -125,12 +127,15 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 				for epic_ccy, timestep_dict in self.model_store.items():
 					if not timestep_dict:
 						continue
-					#fig       = plt.figure(self.target_epics.index(epic)+1)
-					max_tstep = 0
 					
-					pred_data_tstart = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S')
+					ordered_tsteps = sorted([t for t in timestep_dict])
+					max_tstep      = ordered_tsteps[-1]
+					min_tstep      = ordered_tsteps[0]
 					
-					ordered_tsteps = sorted([t for t in timestep_dict]) 
+					pred_data_tstart = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') - timedelta(seconds=max_tstep)
+					pred_data_t_end  = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') + timedelta(seconds=min_tstep)
+					
+					colour_vals = {timestep: self.int_to_RGB(timestep) for timestep in ordered_tsteps}
 					
 					fig = plt.figure()#target_epics.index(epic)+1)
 					ax1 = fig.add_subplot(1,1,1)
@@ -140,22 +145,26 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 						
 						ave_err   = float(model_dict['err_ave']) 
 						stdev_err = float(model_dict['err_stdev'])
-						if timestep > max_tstep:
-							max_tstep = timestep
 						
-						X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, ave_err, stdev_err, n_stdev)
+						if timestep == min_tstep:
+							X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, dt_end=pred_data_t_end, _ave_err=ave_err, _stdev_err=stdev_err, _n_stdev=n_stdev)
+						else:
+							X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _ave_err=ave_err, _stdev_err=stdev_err, _n_stdev=n_stdev)
+							
+						colour = colour_vals[timestep]
+								   
+						ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
 						
-						ax1.plot(X_pred, Y_pred, label = str(int(timestep)/3600)[:-2]+" hour timestep")
-						ax1.plot(X_pred, U_pred, linestyle = ":", color = "red", linewidth = "0.5")
-						ax1.plot(X_pred, L_pred, linestyle = ":", color = "red", linewidth = "0.5")
+						ax1.plot(X_pred, U_pred, linestyle=":", color=colour)#, linewidth="0.5")
+						ax1.plot(X_pred, L_pred, linestyle=":", color=colour)#, linewidth="0.5")
 						
 						pred_data_tstart = new_tstart
-					
+						
 					nrows_historic = int(max_tstep / self.data_interval_sec)
 					
-					X_hist, Y_hist = self.get_real_plot_data(epic_ccy, nrows=nrows_historic)
+					X_hist, Y_hist   = self.get_real_plot_data(epic_ccy, nrows=nrows_historic)
 					
-					ax1.plot(X_hist, Y_hist, "black", label = "Historic")
+					ax1.plot(X_hist, Y_hist, color="red", label="Real")
 					
 					#FORMAT PLOT
 					plt.legend()
