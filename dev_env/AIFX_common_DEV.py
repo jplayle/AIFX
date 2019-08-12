@@ -108,10 +108,13 @@ def get_data(src, price_index=1, headers=False):
 			csv_r.__next__()
 		return [[r[price_index]] for r in csv_r]
 	
-def shape_data(data, window=5, increment=1):
+def shape_data(data, window=5, increment=1, is_stateful=False):
 	# data:      numpy ndarray of normalised/scaled data points for training on.
 	# window:    integer - number of previous data points to use per prediction. 
 	# increment: integer - how many timesteps to shift the window each time.
+	# is_stateful: whether to build data array compatible for stateful predictions
+	if is_stateful:
+		increment = window
 	_X = []
 	_y = []
 	for x in range(int((len(data) - window) / increment)):
@@ -125,19 +128,27 @@ def shape_data(data, window=5, increment=1):
 	
 	return (_X, _y)
 	
-def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, loss_algo='mse', optimizer_algo='adam'):
+def LSTM_RNN(in_shape, deep_layers=0, units=80, dropout=0.2, loss_algo='mse', optimizer_algo='adam', is_stateful=False):
+	
+	if deep_layers > 0:
+		return_seq = True
+	else:
+		return_seq = False
 
 	regressor = Sequential()
 
-	regressor.add(LSTM(units=units, return_sequences=True, input_shape=in_shape))
+	if is_stateful:
+		regressor.add(LSTM(units=units, stateful=is_stateful, return_sequences=return_seq, batch_input_shape=in_shape))
+	else:
+		regressor.add(LSTM(units=units, stateful=is_stateful, return_sequences=return_seq, input_shape=in_shape))
 	regressor.add(Dropout(dropout))
 	
 	for l in range(deep_layers):
-		regressor.add(LSTM(units=units, return_sequences=True))
+		if l == deep_layers - 1:
+			regressor.add(LSTM(units=units, return_sequences=False))
+		else:
+			regressor.add(LSTM(units=units, return_sequences=return_seq))
 		regressor.add(Dropout(dropout))
-
-	regressor.add(LSTM(units=units))
-	regressor.add(Dropout(dropout))
 
 	regressor.add(Dense(units=1))
 
@@ -175,7 +186,7 @@ def plot_prediction(timestep, window, real_values=[], pred_values=[], title="", 
 	#len_rv = len(real_values)
 	#len_pv = pred_values.size
 	pyplot.plot(real_values)#, [x * timestep for x in range(len_rv)])
-	pyplot.plot(pred_values)#, [window + (x * timestep) for x in range(len_pv)])
+	pyplot.plot(pred_values, linestyle='-.')#, [window + (x * timestep) for x in range(len_pv)])
 	
 	#pyplot.axis([0, timestep*len_rv, min(min(real_values), min(pred_values)), max(max(real_values), max(pred_values))])
 	pyplot.title(title)

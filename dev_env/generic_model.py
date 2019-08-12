@@ -15,8 +15,8 @@ metrics    = Metrics()
 from statistics import stdev
 
 # VARIABLES
-data_root_dir = '/home/jhp/Dukascopy/'
-data_file     = 'GBPUSD_20180717-20190717_3600.csv'
+data_root_dir = '/home/jhp/Git/AIFX/dev_env/training_data/'
+data_file     = 'GBPUSD_20180731-20190731_86400.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -24,23 +24,26 @@ batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      60,
+		  'window':      10,
 		  'increment':   1,
 		  'val_split':   0.05,
 		  'deep_layers': 0,
-		  'units':       80,
+		  'units':       10,
 		  'dropout':     0.2,
-		  'epochs':      1000,
+		  'epochs':      375,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
-		  'optimizer_algo': 'adam'
+		  'optimizer_algo': 'rmsprop',
+		  'is_stateful':    True
 		 }
 
 	
-def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_3600_60_40.h5'):
+def main(train=True, save=False, predict=True, plot=True, model_name=''):
 	
 	timestep = params['timestep']
 	window   = params['window']
+	
+	is_stateful = params['is_stateful']
 	
 	sc = MinMaxScaler(feature_range=(0,1))
 	
@@ -49,24 +52,36 @@ def main(train=False, save=True, predict=True, plot=True, model_name='dev_models
 	if train:
 		training_data    = get_data(training_data_src, price_index=1, headers=True)
 		td_scaled        = sc.fit_transform(training_data)
-		X_train, y_train = shape_data(td_scaled, window, params['increment'])
+		X_train, y_train = shape_data(td_scaled, window, params['increment'], is_stateful)
+		
+		if not is_stateful:
+			in_shape = (X_train.shape[1], 1)
+		else:
+			in_shape = (1, X_train.shape[1], 1)
 
-		NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1),
+		NeuralNet = LSTM_RNN(in_shape   =in_shape,
 							 deep_layers=params['deep_layers'],
 							 units      =params['units'],       
 							 dropout    =params['dropout'],
 							 loss_algo  =params['loss_algo'],
-							 optimizer_algo=params['optimizer_algo']
+							 optimizer_algo=params['optimizer_algo'],
+							 is_stateful   =params['is_stateful']
 							 )
 
 		loss_hist = LossHistory()
 		time_hist = TimeHistory()
 
-		hist = NeuralNet.fit(X_train, y_train,                     
-							 validation_split=params['val_split'], 
-							 epochs          =params['epochs'],              
-							 batch_size      =params['batch_size'],          
-							 callbacks       =[loss_hist, time_hist], shuffle=False)
+		if not is_stateful:
+			hist = NeuralNet.fit(X_train, y_train,                     
+								 validation_split=params['val_split'], 
+								 epochs          =params['epochs'],              
+								 batch_size      =params['batch_size'],          
+								 callbacks       =[loss_hist, time_hist], shuffle=False)
+		else:
+			for e in range(params['epochs']):
+				NeuralNet.fit(X_train, y_train, nb_epoch=1, batch_size=1, shuffle=False)
+				NeuralNet.reset_states()
+		
 		if save:
 			model_name = file_namer.model_filename(epic='GBPUSD', params=params, valid_till='')
 			NeuralNet.save(model_name)
