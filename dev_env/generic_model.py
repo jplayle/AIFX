@@ -14,9 +14,14 @@ metrics    = Metrics()
 
 from statistics import stdev
 
+# Data Directories
+dir1 = '/home/jhp/Git/AIFX/dev_env/training_data/'
+dir2 = '/home/jhp/Dukascopy/'
+dir3 = 'C:/Git/AIFX/dev_env/training_data/'
+
 # VARIABLES
-data_root_dir = '/home/jhp/Git/AIFX/dev_env/training_data/'
-data_file     = 'GBPUSD_20180731-20190731_86400.csv'
+data_root_dir = dir2
+data_file     = 'GBPUSD_20180717-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -24,13 +29,13 @@ batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      10,
+		  'window':      60,
 		  'increment':   1,
 		  'val_split':   0.05,
 		  'deep_layers': 0,
-		  'units':       10,
+		  'units':       80,
 		  'dropout':     0.2,
-		  'epochs':      375,
+		  'epochs':      20,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
 		  'optimizer_algo': 'rmsprop',
