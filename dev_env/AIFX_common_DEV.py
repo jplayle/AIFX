@@ -9,6 +9,7 @@ from time import clock
 from keras.models    import Sequential, load_model
 from keras.layers    import Dense
 from keras.layers    import LSTM
+from keras.layers    import TimeDistributed
 from keras.layers    import Dropout
 from keras.callbacks import Callback
 
@@ -125,7 +126,7 @@ def shape_data(data, window=5, increment=1):
 	
 	return (_X, _y)
 	
-def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, loss_algo='mse', optimizer_algo='adam'):
+def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, loss_algo='mse', optimizer_algo='rmsprop'):
 
 	regressor = Sequential()
 
@@ -136,7 +137,7 @@ def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, lo
 		regressor.add(LSTM(units=units, return_sequences=True))
 		regressor.add(Dropout(dropout))
 
-	regressor.add(LSTM(units=units))
+	regressor.add(LSTM(units=units, return_sequences=False, stateful=False))
 	regressor.add(Dropout(dropout))
 
 	regressor.add(Dense(units=1))

@@ -15,8 +15,8 @@ metrics    = Metrics()
 from statistics import stdev
 
 # VARIABLES
-data_root_dir = '/home/jhp/Dukascopy/'
-data_file     = 'GBPUSD_20180717-20190717_3600.csv'
+data_root_dir = 'C:/Git/AIFX/dev_env/training_data/'
+data_file     = 'GBPUSD_20180731-20190731_86400' + '.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -24,20 +24,20 @@ batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      60,
+		  'window':      10,
 		  'increment':   1,
 		  'val_split':   0.05,
 		  'deep_layers': 0,
-		  'units':       80,
+		  'units':       128,
 		  'dropout':     0.2,
-		  'epochs':      1000,
+		  'epochs':      500,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
 		  'optimizer_algo': 'adam'
 		 }
 
 	
-def main(train=False, save=True, predict=True, plot=True, model_name='dev_models/GBPUSD_3600_60_40.h5'):
+def main(train=True, save=False, predict=False, plot=True, model_name='dev_models/GBPUSD_3600_60_40.h5'):
 	
 	timestep = params['timestep']
 	window   = params['window']
