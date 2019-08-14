@@ -38,14 +38,14 @@ class FileNaming():
 						
 		return str(uid + 1)
 	
-	def model_filename(self, epic, timestep, window, ave_diff, stdev_diff, valid_till=''):
+	def model_filename(self, epic, params, valid_till=''):
 		suffix = '.h5'
 		
 		fields = []
-		fields.append(str(timestep))
-		fields.append(str(window))
-		fields.append(str(ave_diff).replace('.', '#'))
-		fields.append(str(stdev_diff).replace('.', '#'))
+		fields.append(str(params['timestep']))
+		fields.append(str(params['window']))
+		#fields.append(str(ave_diff).replace('.', '#'))
+		#fields.append(str(stdev_diff).replace('.', '#'))
 		fields.append(str(valid_till))
 		
 		fname_main = self.field_seperator.join([epic] + fields)
@@ -109,10 +109,13 @@ def get_data(src, price_index=1, headers=False):
 			csv_r.__next__()
 		return [[r[price_index]] for r in csv_r]
 	
-def shape_data(data, window=5, increment=1):
+def shape_data(data, window=5, increment=1, is_stateful=False):
 	# data:      numpy ndarray of normalised/scaled data points for training on.
 	# window:    integer - number of previous data points to use per prediction. 
 	# increment: integer - how many timesteps to shift the window each time.
+	# is_stateful: whether to build data array compatible for stateful predictions
+	if is_stateful:
+		increment = window
 	_X = []
 	_y = []
 	for x in range(int((len(data) - window) / increment)):
@@ -126,19 +129,139 @@ def shape_data(data, window=5, increment=1):
 	
 	return (_X, _y)
 	
-def LSTM_RNN(in_shape, deep_layers=0, units=80, return_seq=True, dropout=0.2, loss_algo='mse', optimizer_algo='rmsprop'):
+def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
+	"""
+	- open relevant epic data file
+	- return a list of prices at timestep intervals of length=window
+	- remove ability to return none
+	"""
+	
+	if data_path[-1] != '/':
+		data_path += '/'
+	
+	def search_around_blank(data_list, index, r_skip, newf_search=False, _x_prev=0):
+		#search for nearby data within +/-x% of timestep e.g. +/- 3 mins
+		new_file = False
+		
+		data_offset = int(r_skip * self.max_data_offset)
+		if not newf_search:
+			search_rng = (1, data_offset + 1)
+		else:
+			search_rng = (0, data_offset - _x_prev)
+		
+		for x in range(search_rng[0], search_rng[1]):
+			try:
+				data_up = data_list[index + x][2]
+				if data_up != '':
+					return data_up
+			except IndexError:
+				pass
+				
+			try:
+				data_dwn = data_list[index - x][2]
+				if data_dwn != '':
+					return data_dwn
+			except IndexError:
+				return ['newf', x]
+				
+		return ''
+	
+	window_data = []
+	
+	row_skip = int(timestep / 60)
+	
+	data_files = sorted(listdir(data_path))[::-1]
+	
+	w_len       = 0
+	r_skip_newf = 0 #row skip if opening a new file
+	srch_newf   = False
+	x_prev      = 0
+	
+	initiate = True
+	
+	for data_file in data_files:
+
+		with open(data_path + data_file, 'r') as csv_f:
+			csv_r = list(reader(csv_f))
+			csv_r.pop(0) #remove headers
+			
+			j = 0
+			if initiate:
+				for r in csv_r[::-1]:
+					break
+					data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
+					if data_time == t_start:
+						r_skip_newf = j
+						break
+					elif data_time < t_start:
+						return []
+					j += 1
+				initiate = False
+									
+			if srch_newf:
+				srch_newf  = False
+				data_point = search_around_blank(csv_r, -1, row_skip, newf_search=True, _x_prev=x_prev)
+				try:
+					float(data_point)
+					window_data.append([data_point])
+					w_len += 1
+					if w_len == window:
+						return window_data[::-1]
+				except ValueError:
+						return []
+		
+			for x in range(window - w_len):					
+				i = -((x * row_skip) + r_skip_newf) - 1
+
+				try:
+					data_point = csv_r[i][2]
+					if data_point == '':
+						data_point = search_around_blank(csv_r, i, row_skip)
+					try:
+						float(data_point)
+						window_data.append([data_point])
+						w_len += 1
+						if w_len == window:
+							return window_data[::-1]
+					except ValueError:
+						if data_point != '':
+							srch_newf   = True
+							x_prev      = data_point[1]
+							r_skip_newf = sum(-1 for r in csv_r) - i - 1 + row_skip
+							break
+						else:
+							return []
+							
+				except IndexError:
+					r_skip_newf = sum(-1 for r in csv_r) - i - 1
+					break
+					
+	if w_len == window:				
+		return window_data[::-1]
+	else:
+		return []
+	
+def LSTM_RNN(in_shape, deep_layers=0, units=80, dropout=0.2, loss_algo='mse', optimizer_algo='adam', is_stateful=False):
+	
+	if deep_layers > 0:
+		return_seq = True
+	else:
+		return_seq = False
 
 	regressor = Sequential()
 
-	regressor.add(LSTM(units=units, return_sequences=True, input_shape=in_shape))
+	if is_stateful:
+		regressor.add(LSTM(units=units, stateful=is_stateful, return_sequences=return_seq, batch_input_shape=in_shape))
+	else:
+		regressor.add(LSTM(units=units, stateful=is_stateful, return_sequences=return_seq, input_shape=in_shape))
 	regressor.add(Dropout(dropout))
 	
 	for l in range(deep_layers):
-		regressor.add(LSTM(units=units, return_sequences=True))
+		if l == deep_layers - 1:
+			regressor.add(LSTM(units=units, return_sequences=False))
+		else:
+			regressor.add(LSTM(units=units, return_sequences=return_seq))
 		regressor.add(Dropout(dropout))
-
-	regressor.add(LSTM(units=units, return_sequences=False, stateful=False))
-	regressor.add(Dropout(dropout))
 
 	regressor.add(Dense(units=1))
 
@@ -176,7 +299,7 @@ def plot_prediction(timestep, window, real_values=[], pred_values=[], title="", 
 	#len_rv = len(real_values)
 	#len_pv = pred_values.size
 	pyplot.plot(real_values)#, [x * timestep for x in range(len_rv)])
-	pyplot.plot(pred_values)#, [window + (x * timestep) for x in range(len_pv)])
+	pyplot.plot(pred_values, linestyle='-.')#, [window + (x * timestep) for x in range(len_pv)])
 	
 	#pyplot.axis([0, timestep*len_rv, min(min(real_values), min(pred_values)), max(max(real_values), max(pred_values))])
 	pyplot.title(title)

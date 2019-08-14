@@ -106,7 +106,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		red   = ((integer >> 16) & 255) / 255
 		return (red, green, blue)
 		
-	def graphical_display(self, real_lim=0, pred_lim=0, n_stdev=1):
+	def graphical_display_service(self, real_lim=0, pred_lim=0, n_stdev=1):
 		"""
 		End goal:
 		- plot up to max timestep into the future
@@ -307,7 +307,7 @@ def main():
 
 	HMI = HumanMachineInterface()
 
-	HMI.graphical_display()
+	HMI.graphical_display_service()
 
 	
 if __name__	== '__main__':

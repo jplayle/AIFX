@@ -14,33 +14,50 @@ metrics    = Metrics()
 
 from statistics import stdev
 
+# Data Directories
+dir1 = '/home/jhp/Git/AIFX/dev_env/training_data/'
+dir2 = '/home/jhp/Dukascopy/'
+dir3 = 'C:/Git/AIFX/dev_env/training_data/'
+
 # VARIABLES
-data_root_dir = 'C:/Git/AIFX/dev_env/training_data/'
-data_file     = 'GBPUSD_20180731-20190731_86400' + '.csv'
+data_root_dir = 'E:/FX_Data/Dukascopy/'
+data_file     = 'GBPUSD_20090101-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
+
+pred_data_path = 'C:/Git/AIFX/prod_env/historic_data/GBPUSD/'
+pred_data_file = '/'
+pred_data_src  = pred_data_path + pred_data_file
 
 batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      10,
+		  'window':      60,
 		  'increment':   1,
-		  'val_split':   0.05,
+		  'val_split':   0.1,
 		  'deep_layers': 0,
-		  'units':       128,
+		  'units':       80,
 		  'dropout':     0.2,
-		  'epochs':      500,
+		  'epochs':      30,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
-		  'optimizer_algo': 'adam'
+		  'optimizer_algo': 'rmsprop',
+		  'is_stateful':    True
 		 }
+		 
+		 
+def forward_test(model, timestep, window, pred_data_path, t_start):
+
+	for 
 
 	
-def main(train=True, save=False, predict=False, plot=True, model_name='dev_models/GBPUSD_3600_60_40.h5'):
+def main(train=False, save=False, predict=False, fwd_test=True, plot=True, model_name=''):
 	
 	timestep = params['timestep']
 	window   = params['window']
+	
+	is_stateful = params['is_stateful']
 	
 	sc = MinMaxScaler(feature_range=(0,1))
 	
@@ -49,24 +66,36 @@ def main(train=True, save=False, predict=False, plot=True, model_name='dev_model
 	if train:
 		training_data    = get_data(training_data_src, price_index=1, headers=True)
 		td_scaled        = sc.fit_transform(training_data)
-		X_train, y_train = shape_data(td_scaled, window, params['increment'])
+		X_train, y_train = shape_data(td_scaled, window, params['increment'], is_stateful)
+		
+		if not is_stateful:
+			in_shape = (X_train.shape[1], 1)
+		else:
+			in_shape = (1, X_train.shape[1], 1)
 
-		NeuralNet = LSTM_RNN(in_shape   =(X_train.shape[1], 1),
+		NeuralNet = LSTM_RNN(in_shape   =in_shape,
 							 deep_layers=params['deep_layers'],
 							 units      =params['units'],       
 							 dropout    =params['dropout'],
 							 loss_algo  =params['loss_algo'],
-							 optimizer_algo=params['optimizer_algo']
+							 optimizer_algo=params['optimizer_algo'],
+							 is_stateful   =params['is_stateful']
 							 )
 
 		loss_hist = LossHistory()
 		time_hist = TimeHistory()
 
-		hist = NeuralNet.fit(X_train, y_train,                     
-							 validation_split=params['val_split'], 
-							 epochs          =params['epochs'],              
-							 batch_size      =params['batch_size'],          
-							 callbacks       =[loss_hist, time_hist], shuffle=False)
+		if not is_stateful:
+			hist = NeuralNet.fit(X_train, y_train,                     
+								 validation_split=params['val_split'], 
+								 epochs          =params['epochs'],              
+								 batch_size      =params['batch_size'],          
+								 callbacks       =[loss_hist, time_hist], shuffle=False)
+		else:
+			for e in range(params['epochs']):
+				NeuralNet.fit(X_train, y_train, validation_split=params['val_split'], nb_epoch=1, batch_size=1, shuffle=False)
+				NeuralNet.reset_states()
+		
 		if save:
 			model_name = file_namer.model_filename(epic='GBPUSD', params=params, valid_till='')
 			NeuralNet.save(model_name)
@@ -78,7 +107,7 @@ def main(train=True, save=False, predict=False, plot=True, model_name='dev_model
 			return
 		
 		if not train:
-			predict_data   = get_data(training_data_src, price_index=1, headers=True)
+			predict_data   = get_data(pred_data_src, price_index=1, headers=True)
 			pd_scaled      = sc.fit_transform(predict_data)
 			X_pred, y_pred = shape_data(pd_scaled, window, params['increment'])
 		else:

@@ -116,7 +116,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						try:
 							float(data_point)
 							window_data.append([data_point])
-							print(w_len, csv_r[i])
 							w_len += 1
 							if w_len == window:
 								return window_data[::-1]
@@ -173,10 +172,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 
 				for epic in self.target_epics:
 					epic_ccy = epic[5:11]
-
-					if self.pred_layer:
-						# code for layered predictions #
-						pass
 				
 					for timestep, model_dict in self.model_store[epic_ccy].items():
 						if timestep != 3600: ##########
@@ -193,8 +188,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
-						print(len(window_data))
-						sleep(1000)
+
 						if window_data != []:
 							window_data = sc.fit_transform(window_data)
 							window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
