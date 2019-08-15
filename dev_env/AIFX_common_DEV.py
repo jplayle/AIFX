@@ -9,6 +9,7 @@ from time import clock
 from keras.models    import Sequential, load_model
 from keras.layers    import Dense
 from keras.layers    import LSTM
+from keras.layers    import TimeDistributed
 from keras.layers    import Dropout
 from keras.callbacks import Callback
 
@@ -127,6 +128,118 @@ def shape_data(data, window=5, increment=1, is_stateful=False):
 	_X    = np.reshape(_X, (_X.shape[0], _X.shape[1], 1))
 	
 	return (_X, _y)
+	
+def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
+	"""
+	- open relevant epic data file
+	- return a list of prices at timestep intervals of length=window
+	- remove ability to return none
+	"""
+	
+	if data_path[-1] != '/':
+		data_path += '/'
+	
+	def search_around_blank(data_list, index, r_skip, newf_search=False, _x_prev=0):
+		#search for nearby data within +/-x% of timestep e.g. +/- 3 mins
+		new_file = False
+		
+		data_offset = int(r_skip * self.max_data_offset)
+		if not newf_search:
+			search_rng = (1, data_offset + 1)
+		else:
+			search_rng = (0, data_offset - _x_prev)
+		
+		for x in range(search_rng[0], search_rng[1]):
+			try:
+				data_up = data_list[index + x][2]
+				if data_up != '':
+					return data_up
+			except IndexError:
+				pass
+				
+			try:
+				data_dwn = data_list[index - x][2]
+				if data_dwn != '':
+					return data_dwn
+			except IndexError:
+				return ['newf', x]
+				
+		return ''
+	
+	window_data = []
+	
+	row_skip = int(timestep / 60)
+	
+	data_files = sorted(listdir(data_path))[::-1]
+	
+	w_len       = 0
+	r_skip_newf = 0 #row skip if opening a new file
+	srch_newf   = False
+	x_prev      = 0
+	
+	initiate = True
+	
+	for data_file in data_files:
+
+		with open(data_path + data_file, 'r') as csv_f:
+			csv_r = list(reader(csv_f))
+			csv_r.pop(0) #remove headers
+			
+			j = 0
+			if initiate:
+				for r in csv_r[::-1]:
+					break
+					data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
+					if data_time == t_start:
+						r_skip_newf = j
+						break
+					elif data_time < t_start:
+						return []
+					j += 1
+				initiate = False
+									
+			if srch_newf:
+				srch_newf  = False
+				data_point = search_around_blank(csv_r, -1, row_skip, newf_search=True, _x_prev=x_prev)
+				try:
+					float(data_point)
+					window_data.append([data_point])
+					w_len += 1
+					if w_len == window:
+						return window_data[::-1]
+				except ValueError:
+						return []
+		
+			for x in range(window - w_len):					
+				i = -((x * row_skip) + r_skip_newf) - 1
+
+				try:
+					data_point = csv_r[i][2]
+					if data_point == '':
+						data_point = search_around_blank(csv_r, i, row_skip)
+					try:
+						float(data_point)
+						window_data.append([data_point])
+						w_len += 1
+						if w_len == window:
+							return window_data[::-1]
+					except ValueError:
+						if data_point != '':
+							srch_newf   = True
+							x_prev      = data_point[1]
+							r_skip_newf = sum(-1 for r in csv_r) - i - 1 + row_skip
+							break
+						else:
+							return []
+							
+				except IndexError:
+					r_skip_newf = sum(-1 for r in csv_r) - i - 1
+					break
+					
+	if w_len == window:				
+		return window_data[::-1]
+	else:
+		return []
 	
 def LSTM_RNN(in_shape, deep_layers=0, units=80, dropout=0.2, loss_algo='mse', optimizer_algo='adam', is_stateful=False):
 	

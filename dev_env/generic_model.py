@@ -25,13 +25,17 @@ data_file     = 'GBPUSD_20090101-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
+pred_data_path = 'C:/Git/AIFX/prod_env/historic_data/GBPUSD/'
+pred_data_file = '/'
+pred_data_src  = pred_data_path + pred_data_file
+
 batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
 		  'window':      60,
 		  'increment':   1,
-		  'val_split':   0.05,
+		  'val_split':   0.1,
 		  'deep_layers': 0,
 		  'units':       80,
 		  'dropout':     0.2,
@@ -41,8 +45,11 @@ params = {'timestep':    data_timestep,
 		  'optimizer_algo': 'rmsprop',
 		  'is_stateful':    True
 		 }
+		 
+		 
+def forward_test(model, timestep, window, pred_data_path, t_start):
+	return
 
-	
 def main(train=True, save=True, predict=True, plot=True, model_name=''):
 	
 	timestep = params['timestep']
@@ -84,7 +91,7 @@ def main(train=True, save=True, predict=True, plot=True, model_name=''):
 								 callbacks       =[loss_hist, time_hist], shuffle=False)
 		else:
 			for e in range(params['epochs']):
-				NeuralNet.fit(X_train, y_train, nb_epoch=1, batch_size=1, shuffle=False)
+				NeuralNet.fit(X_train, y_train, validation_split=params['val_split'], nb_epoch=1, batch_size=1, shuffle=False)
 				NeuralNet.reset_states()
 		
 		if save:
@@ -98,7 +105,7 @@ def main(train=True, save=True, predict=True, plot=True, model_name=''):
 			return
 		
 		if not train:
-			predict_data   = get_data(training_data_src, price_index=1, headers=True)
+			predict_data   = get_data(pred_data_src, price_index=1, headers=True)
 			pd_scaled      = sc.fit_transform(predict_data)
 			X_pred, y_pred = shape_data(pd_scaled, window, params['increment'])
 		else:

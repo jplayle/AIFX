@@ -1,4 +1,6 @@
-import pandas as pd
+from sys import argv
+
+#import pandas as pd
 import pickle
 
 import matplotlib.pyplot as plt
@@ -9,6 +11,13 @@ from time import (clock, sleep, time)
 from datetime import datetime, timedelta
 
 from AIFX_common_PROD import *
+
+
+arg_vals = {}
+for argval_pair in argv[1:]:
+	arg, val = argval_pair.split('=')
+	args[arg] = val
+	
 
 class HumanMachineInterface(AIFX_Prod_Variables):
 	
@@ -106,7 +115,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		red   = ((integer >> 16) & 255) / 255
 		return (red, green, blue)
 		
-	def graphical_display(self, real_lim=0, pred_lim=0, n_stdev=1):
+	def graphical_display_service(self, real_lim=0, pred_lim=0, n_stdev=1):
 		"""
 		End goal:
 		- plot up to max timestep into the future
@@ -155,8 +164,8 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 								   
 						ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
 						
-						ax1.plot(X_pred, U_pred, linestyle=":", color=colour)#, linewidth="0.5")
-						ax1.plot(X_pred, L_pred, linestyle=":", color=colour)#, linewidth="0.5")
+						ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
+						ax1.plot(X_pred, L_pred, linestyle=":", color=colour)
 						
 						pred_data_tstart = new_tstart
 						
@@ -172,7 +181,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 					plt.xlabel('Time')
 					plt.ylabel('Price')   
 					
-					plt.show()
+					#plt.show()
 					    
 					#SAVE PLOT LIVE
 					#pickle.dump(ax1, open(self.output_dir+epic_ccy+'/'+epic_ccy+'_Graph'+'.pickle', "wb"))
@@ -307,7 +316,7 @@ def main():
 
 	HMI = HumanMachineInterface()
 
-	HMI.graphical_display()
+	HMI.graphical_display_service()
 
 	
 if __name__	== '__main__':
