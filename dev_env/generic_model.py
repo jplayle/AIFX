@@ -21,7 +21,7 @@ dir3 = 'C:/Git/AIFX/dev_env/training_data/'
 
 # VARIABLES
 data_root_dir = dir2
-data_file     = 'GBPUSD_20180717-20190717_3600.csv'
+data_file     = 'GBPUSD_20090101-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -35,7 +35,7 @@ params = {'timestep':    data_timestep,
 		  'deep_layers': 0,
 		  'units':       80,
 		  'dropout':     0.2,
-		  'epochs':      20,
+		  'epochs':      30,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
 		  'optimizer_algo': 'rmsprop',
@@ -43,7 +43,7 @@ params = {'timestep':    data_timestep,
 		 }
 
 	
-def main(train=True, save=False, predict=True, plot=True, model_name=''):
+def main(train=True, save=True, predict=True, plot=True, model_name=''):
 	
 	timestep = params['timestep']
 	window   = params['window']
@@ -88,7 +88,7 @@ def main(train=True, save=False, predict=True, plot=True, model_name=''):
 				NeuralNet.reset_states()
 		
 		if save:
-			model_name = file_namer.model_filename(epic='GBPUSD', params=params, valid_till='')
+			model_name = file_namer.model_filename(epic_ccy='GBPUSD', params=params, valid_till='')
 			NeuralNet.save(model_name)
 
 	if predict:
