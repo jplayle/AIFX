@@ -54,10 +54,16 @@ class FileNaming():
 		fname = self.field_seperator.join([fname_main, fname_uid]) + suffix
 		
 		return self.models_root + fname
+		
+	def extract_model_params(self, model_fname):
+		model_params = model_fname.split(self.field_seperator)
+		return {'epic_ccy': model_params[0], 'timestep': model_params[1], 'window': model_params[2], 'valid_till': model_params[3].replace('.h5', '')}
 	
 	def graph_filename(self, suffix):
 		
 		return
+		
+	
 
 class Metrics():
 
@@ -192,12 +198,14 @@ def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
 					data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
 					if data_time == t_start:
 						r_skip_newf = j
+						initiate    = False
 						break
 					elif data_time < t_start:
 						return []
 					j += 1
-				initiate = False
-									
+			if initiate:
+				continue
+
 			if srch_newf:
 				srch_newf  = False
 				data_point = search_around_blank(csv_r, -1, row_skip, newf_search=True, _x_prev=x_prev)
