@@ -88,12 +88,14 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
 						if data_time == t_start:
 							r_skip_newf = j
+							initiate    = False
 							break
 						elif data_time < t_start:
 							return []
 						j += 1
-					initiate = False
-										
+				if initiate:
+					continue
+
 				if srch_newf:
 					srch_newf  = False
 					data_point = search_around_blank(csv_r, -1, row_skip, newf_search=True, _x_prev=x_prev)

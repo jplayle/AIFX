@@ -9,7 +9,7 @@ print("-- SLTM Neural Network: Forex training and testing environment.")
 
 from AIFX_common_DEV import *
 
-file_namer = FileNaming()
+file_names = FileNaming()
 metrics    = Metrics()
 
 from statistics import stdev
@@ -47,11 +47,55 @@ params = {'timestep':    data_timestep,
 		 }
 		 
 		 
-def forward_test(model, timestep, window, pred_data_path, t_start):
+def forward_test(model, hist_data_path, t_start, t_interval=60):
+	"""
+	Function for testing a model's performance on future data pulled from prod_env.
+	- model: keras object of the model to be tested.
+	- timestep: in seconds.
+	- window: (aka 'look back') - length of input array for prediction.
+	- hist_data_path: path to prod_env historic data.
+	- t_inerval: time in seconds between each data point 
+	"""
+	def get_end_time(_hist_data_path):
+		end_data_file = sorted(listdir(_hist_data_path))[-1]
+		with open(_hist_data_path + end_data_file, 'r') as csv_f:
+			csv_r = list(reader(csv_f))
+			return datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
+			
+	params   = file_names.extract_model_params(model)
+	#timestep = int(params['timestep'])
+	#window   = int(params['window'])
+
+	t_now = t_start
+	t_end = get_end_time(hist_data_path) + timedelta(seconds=t_interval)
+	
+	print(t_end)
 	return
 
-def main(train=True, save=True, predict=True, plot=True, model_name=''):
+	while t_now != t_end:
+		pred_time  = t_now + timedelta(seconds=timestep)
+		
+		sc = MinMaxScaler(feature_range=(0,1))
+						
+		window_data = self.build_window_data(hist_data_path, timestep, window, t_now)
+		
+		if window_data != []:
+			window_data = sc.fit_transform(window_data)
+			window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
+			
+			prediction = model.predict(window_data)
+			pred_price = sc.inverse_transform(prediction)[0][0]
+			
+			# write prediction
+			
+		t_now += timedelta(seconds=t_interval)
+
 	
+def main(train=False, save=False, predict=False, fwd_test=True, plot=True, model_name=''):
+
+	forward_test('dev_models/GBPUSD_3600_60__0.h5', 'C:/Git/AIFX/prod_env/historic_data/GBPUSD/', '') 
+	return
+
 	timestep = params['timestep']
 	window   = params['window']
 	
@@ -95,7 +139,7 @@ def main(train=True, save=True, predict=True, plot=True, model_name=''):
 				NeuralNet.reset_states()
 		
 		if save:
-			model_name = file_namer.model_filename(epic_ccy='GBPUSD', params=params, valid_till='')
+			model_name = file_names.model_filename(epic='GBPUSD', params=params, valid_till='')
 			NeuralNet.save(model_name)
 
 	if predict:

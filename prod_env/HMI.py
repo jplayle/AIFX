@@ -12,11 +12,6 @@ from datetime import datetime, timedelta
 
 from AIFX_common_PROD import *
 
-
-arg_vals = {}
-for argval_pair in argv[1:]:
-	arg, val = argval_pair.split('=')
-	args[arg] = val
 	
 
 class HumanMachineInterface(AIFX_Prod_Variables):
@@ -115,77 +110,74 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		red   = ((integer >> 16) & 255) / 255
 		return (red, green, blue)
 		
-	def graphical_display_service(self, real_lim=0, pred_lim=0, n_stdev=1):
+	def trade_graph(self, _arg_vals):
 		"""
 		End goal:
 		- plot up to max timestep into the future
 		- add min & max deviations
 		"""
+		args = ['epic', '', '']
+		for arg in args:
+		try:
+			epic_ccy = _arg_vals['epic']
+		except KeyError:
+			return
 		
 		style.use('seaborn')
 		
-		t_prev = clock()
+		dt_now = (datetime.utcnow() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0)
 		
-		while True:
-			t_now = clock()
-			
-			if t_now - t_prev >= 10:#self.pred_rate:
-				t_prev = t_now
-				dt_now = (datetime.utcnow() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0)
-				
-				for epic_ccy, timestep_dict in self.model_store.items():
-					if not timestep_dict:
-						continue
-					
-					ordered_tsteps = sorted([t for t in timestep_dict])
-					max_tstep      = ordered_tsteps[-1]
-					min_tstep      = ordered_tsteps[0]
-					
-					pred_data_tstart = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') - timedelta(seconds=max_tstep)
-					pred_data_t_end  = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') + timedelta(seconds=min_tstep)
-					
-					colour_vals = {timestep: self.int_to_RGB(timestep) for timestep in ordered_tsteps}
-					
-					fig = plt.figure()#target_epics.index(epic)+1)
-					ax1 = fig.add_subplot(1,1,1)
-					
-					for timestep in ordered_tsteps:
-						model_dict = timestep_dict[timestep]
-						
-						ave_err   = float(model_dict['err_ave']) 
-						stdev_err = float(model_dict['err_stdev'])
-						
-						if timestep == min_tstep:
-							X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, dt_end=pred_data_t_end, _ave_err=ave_err, _stdev_err=stdev_err, _n_stdev=n_stdev)
-						else:
-							X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _ave_err=ave_err, _stdev_err=stdev_err, _n_stdev=n_stdev)
-							
-						colour = colour_vals[timestep]
-								   
-						ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
-						
-						ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
-						ax1.plot(X_pred, L_pred, linestyle=":", color=colour)
-						
-						pred_data_tstart = new_tstart
-						
-					nrows_historic = int(max_tstep / self.data_interval_sec)
-					
-					X_hist, Y_hist   = self.get_real_plot_data(epic_ccy, nrows=nrows_historic)
-					
-					ax1.plot(X_hist, Y_hist, color="red", label="Real")
-					
-					#FORMAT PLOT
-					plt.legend()
-					plt.title(epic_ccy)
-					plt.xlabel('Time')
-					plt.ylabel('Price')   
-					
-					#plt.show()
-					    
-					#SAVE PLOT LIVE
-					#pickle.dump(ax1, open(self.output_dir+epic_ccy+'/'+epic_ccy+'_Graph'+'.pickle', "wb"))
-					plt.clf()
+		timestep_dict = self.model_store[epic_ccy]
+
+		ordered_tsteps = sorted([t for t in timestep_dict])
+		max_tstep      = ordered_tsteps[-1]
+		min_tstep      = ordered_tsteps[0]
+
+		pred_data_tstart = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') - timedelta(seconds=max_tstep)
+		pred_data_t_end  = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') + timedelta(seconds=min_tstep)
+
+		colour_vals = {timestep: self.int_to_RGB(timestep) for timestep in ordered_tsteps}
+
+		fig = plt.figure()#target_epics.index(epic)+1)
+		ax1 = fig.add_subplot(1,1,1)
+
+		for timestep in ordered_tsteps:
+			model_dict = timestep_dict[timestep]
+
+			ave_err   = float(model_dict['err_ave']) 
+			stdev_err = float(model_dict['err_stdev'])
+
+			if timestep == min_tstep:
+				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, dt_end=pred_data_t_end, _ave_err=ave_err, _stdev_err=stdev_err, _n_stdev=n_stdev)
+			else:
+				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _ave_err=ave_err, _stdev_err=stdev_err, _n_stdev=n_stdev)
+
+			colour = colour_vals[timestep]
+
+			ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
+
+			ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
+			ax1.plot(X_pred, L_pred, linestyle=":", color=colour)
+
+			pred_data_tstart = new_tstart
+
+		nrows_historic = int(max_tstep / self.data_interval_sec)
+
+		X_hist, Y_hist   = self.get_real_plot_data(epic_ccy, nrows=nrows_historic)
+
+		ax1.plot(X_hist, Y_hist, color="red", label="Real")
+
+		#FORMAT PLOT
+		plt.legend()
+		plt.title(epic_ccy)
+		plt.xlabel('Time')
+		plt.ylabel('Price')   
+
+		plt.show()
+
+		#SAVE PLOT LIVE
+		#pickle.dump(ax1, open(self.output_dir+epic_ccy+'/'+epic_ccy+'_Graph'+'.pickle', "wb"))
+		plt.clf()
 					
 			
 class Indicators():
@@ -313,10 +305,15 @@ class Indicators():
 		# 
 		
 def main():
+	
+	arg_vals = {}
+	for argval_pair in argv[1:]:
+		arg, val = argval_pair.split('=')
+		args[arg] = val
 
 	HMI = HumanMachineInterface()
 
-	HMI.graphical_display_service()
+	HMI.trade_graph(arg_vals)
 
 	
 if __name__	== '__main__':
