@@ -59,15 +59,18 @@ def forward_test(model, hist_data_path, t_start, t_interval=60):
 	def get_end_time(_hist_data_path):
 		end_data_file = sorted(listdir(_hist_data_path))[-1]
 		with open(_hist_data_path + end_data_file, 'r') as csv_f:
-			csv_r = reader(csv_f)
+			csv_r = list(reader(csv_f))
 			return datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
 			
 	params   = file_names.extract_model_params(model)
-	timestep = params['timestep']
-	window   = params['window']
+	#timestep = int(params['timestep'])
+	#window   = int(params['window'])
 
 	t_now = t_start
 	t_end = get_end_time(hist_data_path) + timedelta(seconds=t_interval)
+	
+	print(t_end)
+	return
 
 	while t_now != t_end:
 		pred_time  = t_now + timedelta(seconds=timestep)
@@ -89,7 +92,9 @@ def forward_test(model, hist_data_path, t_start, t_interval=60):
 
 	
 def main(train=False, save=False, predict=False, fwd_test=True, plot=True, model_name=''):
-	
+
+	forward_test('dev_models/GBPUSD_3600_60__0.h5', 'C:/Git/AIFX/prod_env/historic_data/GBPUSD/', '') 
+	return
 	timestep = params['timestep']
 	window   = params['window']
 	

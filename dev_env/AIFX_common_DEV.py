@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as pyplot
 
-from os import walk
+from os import walk, listdir
 from sys import argv, exit
 from csv import reader, writer
 from time import clock
+from datetime import datetime, timedelta
 
 from keras.models    import Sequential, load_model
 from keras.layers    import Dense
@@ -56,6 +57,9 @@ class FileNaming():
 		return self.models_root + fname
 		
 	def extract_model_params(self, model_fname):
+		model_fname = model_fname[::-1]
+		model_fname = model_fname[:model_fname.find('/')]
+		model_fname = model_fname[:model_fname.find('\\')]
 		model_params = model_fname.split(self.field_seperator)
 		return {'epic_ccy': model_params[0], 'timestep': model_params[1], 'window': model_params[2], 'valid_till': model_params[3].replace('.h5', '')}
 	
