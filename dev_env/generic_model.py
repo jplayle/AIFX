@@ -19,9 +19,11 @@ dir1 = '/home/jhp/Git/AIFX/dev_env/training_data/'
 dir2 = '/home/jhp/Dukascopy/'
 dir3 = 'C:/Git/AIFX/dev_env/training_data/'
 
+dir4 = '/home/jhp/Git/AIFX/prod_env/historic_data/GBPUSD/'
+
 # VARIABLES
 data_root_dir = dir2
-data_file     = 'GBPUSD_20090101-20190717_3600.csv'
+data_file     = 'GBPUSD_20180717-20190717_3600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -47,10 +49,11 @@ params = {'timestep':    data_timestep,
 		 }
 		 
 		 
-def forward_test(model, hist_data_path, t_start, t_interval=60):
+def forward_test(model_name, hist_data_path, t_start, t_interval=60):
+	print(t_start)
 	"""
 	Function for testing a model's performance on future data pulled from prod_env.
-	- model: keras object of the model to be tested.
+	- model_name: path to .h5 file of the model to be tested.
 	- timestep: in seconds.
 	- window: (aka 'look back') - length of input array for prediction.
 	- hist_data_path: path to prod_env historic data.
@@ -61,40 +64,53 @@ def forward_test(model, hist_data_path, t_start, t_interval=60):
 		with open(_hist_data_path + end_data_file, 'r') as csv_f:
 			csv_r = list(reader(csv_f))
 			return datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
+		
+	model = load_model(model_name)
 			
-	params   = file_names.extract_model_params(model)
-	#timestep = int(params['timestep'])
-	#window   = int(params['window'])
+	params   = file_names.extract_model_params(model_name)
+	timestep = int(params['timestep'])
+	window   = int(params['window'])
 
 	t_now = t_start
 	t_end = get_end_time(hist_data_path) + timedelta(seconds=t_interval)
 	
-	print(t_end)
-	return
+	real_vals = []
+	pred_vals = []
+	pred_diff = []
 
-	while t_now != t_end:
+	while t_now <= t_end:
 		pred_time  = t_now + timedelta(seconds=timestep)
 		
 		sc = MinMaxScaler(feature_range=(0,1))
-						
-		window_data = self.build_window_data(hist_data_path, timestep, window, t_now)
 		
-		if window_data != []:
+		window_data, y_real = build_window_data(hist_data_path, timestep, window, t_now, pred_time)
+		
+		if window_data != [] and y_real != 0:
 			window_data = sc.fit_transform(window_data)
 			window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
 			
-			prediction = model.predict(window_data)
-			pred_price = sc.inverse_transform(prediction)[0][0]
+			y_pred = model.predict(window_data)
+			y_pred = sc.inverse_transform(y_pred)[0][0]
 			
-			# write prediction
+			real_vals.append(y_real)
+			pred_vals.append(y_pred)
+			pred_diff.append(y_real - y_pred)
 			
-		t_now += timedelta(seconds=t_interval)
+			#print(pred_time, y_real, y_pred)
+			
+		t_now += timedelta(seconds=timestep)
+		
+	print('min =', min(pred_diff))
+	print('ave =', sum(p_diff for p_diff in pred_diff) / sum(1 for p in pred_diff))
+	print('max =', max(pred_diff))
+	print('dev =', stdev(pred_diff))
 
 	
-def main(train=False, save=False, predict=False, fwd_test=True, plot=True, model_name=''):
+def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_name='dev_models/GBPUSD_3600_60__3.h5'):
 
-	forward_test('dev_models/GBPUSD_3600_60__0.h5', 'C:/Git/AIFX/prod_env/historic_data/GBPUSD/', '') 
-	return
+	if fwd_test:
+		forward_test(model_name, dir4, t_start=datetime(2019, 7, 18, 0, 0, 0))
+		return
 
 	timestep = params['timestep']
 	window   = params['window']
@@ -135,11 +151,12 @@ def main(train=False, save=False, predict=False, fwd_test=True, plot=True, model
 								 callbacks       =[loss_hist, time_hist], shuffle=False)
 		else:
 			for e in range(params['epochs']):
+				print(e+1)
 				NeuralNet.fit(X_train, y_train, validation_split=params['val_split'], nb_epoch=1, batch_size=1, shuffle=False)
 				NeuralNet.reset_states()
 		
 		if save:
-			model_name = file_names.model_filename(epic='GBPUSD', params=params, valid_till='')
+			model_name = file_names.model_filename(epic_ccy='GBPUSD', params=params, valid_till='')
 			NeuralNet.save(model_name)
 
 	if predict:

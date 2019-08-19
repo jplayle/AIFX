@@ -58,16 +58,20 @@ class FileNaming():
 		
 	def extract_model_params(self, model_fname):
 		model_fname = model_fname[::-1]
-		model_fname = model_fname[:model_fname.find('/')]
-		model_fname = model_fname[:model_fname.find('\\')]
+		if '/' in model_fname:
+			model_fname = model_fname[:model_fname.find('/')]
+		elif '\\' in model_fname:
+			model_fname = model_fname[:model_fname.find('\\')]
+		model_fname = model_fname[::-1]
+		
 		model_params = model_fname.split(self.field_seperator)
-		return {'epic_ccy': model_params[0], 'timestep': model_params[1], 'window': model_params[2], 'valid_till': model_params[3].replace('.h5', '')}
+		
+		return {'epic_ccy': model_params[0], 'timestep': model_params[1], 'window': model_params[2], 'valid_till': model_params[3]}
 	
 	def graph_filename(self, suffix):
 		
 		return
 		
-	
 
 class Metrics():
 
@@ -139,7 +143,7 @@ def shape_data(data, window=5, increment=1, is_stateful=False):
 	
 	return (_X, _y)
 	
-def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
+def build_window_data(data_path, timestep=0, window=0, t_start=None, pred_time=None):
 	"""
 	- open relevant epic data file
 	- return a list of prices at timestep intervals of length=window
@@ -153,7 +157,7 @@ def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
 		#search for nearby data within +/-x% of timestep e.g. +/- 3 mins
 		new_file = False
 		
-		data_offset = int(r_skip * self.max_data_offset)
+		data_offset = int(r_skip * 0.05)
 		if not newf_search:
 			search_rng = (1, data_offset + 1)
 		else:
@@ -177,6 +181,7 @@ def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
 		return ''
 	
 	window_data = []
+	pred_real   = 0
 	
 	row_skip = int(timestep / 60)
 	
@@ -198,14 +203,18 @@ def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
 			j = 0
 			if initiate:
 				for r in csv_r[::-1]:
-					break
 					data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
+					if data_time == pred_time:
+						try:
+							pred_real = float(r[2])
+						except ValueError:
+							return ([], 0)
 					if data_time == t_start:
 						r_skip_newf = j
 						initiate    = False
 						break
 					elif data_time < t_start:
-						return []
+						return ([], pred_real)
 					j += 1
 			if initiate:
 				continue
@@ -220,7 +229,7 @@ def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
 					if w_len == window:
 						return window_data[::-1]
 				except ValueError:
-						return []
+						return ([], pred_real)
 		
 			for x in range(window - w_len):					
 				i = -((x * row_skip) + r_skip_newf) - 1
@@ -234,7 +243,7 @@ def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
 						window_data.append([data_point])
 						w_len += 1
 						if w_len == window:
-							return window_data[::-1]
+							return (window_data[::-1], pred_real)
 					except ValueError:
 						if data_point != '':
 							srch_newf   = True
@@ -242,16 +251,16 @@ def build_window_data(self, data_path, timestep=0, window=0, t_start=None):
 							r_skip_newf = sum(-1 for r in csv_r) - i - 1 + row_skip
 							break
 						else:
-							return []
+							return ([], pred_real)
 							
 				except IndexError:
 					r_skip_newf = sum(-1 for r in csv_r) - i - 1
 					break
 					
 	if w_len == window:				
-		return window_data[::-1]
+		return (window_data[::-1], pred_real)
 	else:
-		return []
+		return ([], pred_real)
 	
 def LSTM_RNN(in_shape, deep_layers=0, units=80, dropout=0.2, loss_algo='mse', optimizer_algo='adam', is_stateful=False):
 	
@@ -305,7 +314,6 @@ def log_results(path='', mode='a', results=[]):
 		csv_w = writer(csv_f, lineterminator='\n')
 		for r in results:
 			csv_w.writerow([i for i in r])
-
 			
 def plot_prediction(timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label="", path=''):
 	#len_rv = len(real_values)
