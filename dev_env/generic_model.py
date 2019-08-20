@@ -16,14 +16,14 @@ from statistics import stdev
 
 # Data Directories
 dir1 = '/home/jhp/Git/AIFX/dev_env/training_data/'
-dir2 = '/home/jhp/Dukascopy/'
+dir2 = '/home/jhp/Dukascopy/GBPUSD/'
 dir3 = 'C:/Git/AIFX/dev_env/training_data/'
 
 dir4 = '../prod_env/historic_data/GBPUSD/'
 
 # VARIABLES
 data_root_dir = dir2
-data_file     = 'GBPUSD_20180717-20190717_3600.csv'
+data_file     = 'GBPUSD_20140101-20190717_21600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -31,16 +31,18 @@ pred_data_path = 'C:/Git/AIFX/prod_env/historic_data/GBPUSD/'
 pred_data_file = '/'
 pred_data_src  = pred_data_path + pred_data_file
 
+m1 = 'dev_models/GBPUSD_21600_50__0.h5'
+
 batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      60,
+		  'window':      15,
 		  'increment':   1,
-		  'val_split':   0.1,
+		  'val_split':   0,
 		  'deep_layers': 0,
 		  'units':       80,
-		  'dropout':     0.2,
+		  'dropout':     0.05,
 		  'epochs':      50,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
@@ -50,7 +52,6 @@ params = {'timestep':    data_timestep,
 		 
 		 
 def forward_test(model_name, hist_data_path, t_start, t_interval=60):
-	print(t_start)
 	"""
 	Function for testing a model's performance on future data pulled from prod_env.
 	- model_name: path to .h5 file of the model to be tested.
@@ -114,11 +115,7 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 					x_label="Time")
 
 	
-def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_name='dev_models/GBPUSD_3600_60__1.h5'):
-
-	if fwd_test:
-		forward_test(model_name, dir4, t_start=datetime(2019, 7, 18, 0, 0, 0))
-		return
+def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_name=''):
 
 	timestep = params['timestep']
 	window   = params['window']
@@ -215,6 +212,9 @@ def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_na
 							title="GBPUSD", 
 							y_label="Price", 
 							x_label="Time")
+			
+	if fwd_test:
+		forward_test(model_name, dir4, t_start=datetime(2019, 7, 18, 0, 0, 0))
 
 	
 if __name__ == '__main__':
