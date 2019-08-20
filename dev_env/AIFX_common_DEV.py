@@ -58,8 +58,11 @@ class FileNaming():
 		
 	def extract_model_params(self, model_fname):
 		model_fname = model_fname[::-1]
-		model_fname = model_fname[:model_fname.find('/')]
-		model_fname = model_fname[:model_fname.find('\\')]
+		if '/' in model_fname:
+			model_fname = model_fname[:model_fname.find('/')]
+		elif '\\' in model_fname:
+			model_fname = model_fname[:model_fname.find('\\')]
+		model_fname = model_fname[::-1]
 		model_params = model_fname.split(self.field_seperator)
 		return {'epic_ccy': model_params[0], 'timestep': model_params[1], 'window': model_params[2], 'valid_till': model_params[3].replace('.h5', '')}
 	
