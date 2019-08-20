@@ -41,7 +41,7 @@ params = {'timestep':    data_timestep,
 		  'deep_layers': 0,
 		  'units':       80,
 		  'dropout':     0.2,
-		  'epochs':      30,
+		  'epochs':      50,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
 		  'optimizer_algo': 'rmsprop',
@@ -104,9 +104,17 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 	print('ave =', sum(p_diff for p_diff in pred_diff) / sum(1 for p in pred_diff))
 	print('max =', max(pred_diff))
 	print('dev =', stdev(pred_diff))
+	
+	plot_prediction(timestep=timestep, 
+					window=window, 
+					real_values=real_vals, 
+					pred_values=pred_vals, 
+					title="GBPUSD", 
+					y_label="Price", 
+					x_label="Time")
 
 	
-def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_name='dev_models/GBPUSD_3600_60__3.h5'):
+def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_name='dev_models/GBPUSD_3600_60__1.h5'):
 
 	if fwd_test:
 		forward_test(model_name, dir4, t_start=datetime(2019, 7, 18, 0, 0, 0))
@@ -152,7 +160,7 @@ def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_na
 		else:
 			for e in range(params['epochs']):
 				print(e+1)
-				NeuralNet.fit(X_train, y_train, validation_split=params['val_split'], nb_epoch=1, batch_size=1, shuffle=False)
+				NeuralNet.fit(X_train, y_train, nb_epoch=1, batch_size=1, shuffle=False, validation_split=params['val_split'])
 				NeuralNet.reset_states()
 		
 		if save:
