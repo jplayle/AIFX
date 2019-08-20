@@ -19,7 +19,7 @@ dir1 = '/home/jhp/Git/AIFX/dev_env/training_data/'
 dir2 = '/home/jhp/Dukascopy/'
 dir3 = 'C:/Git/AIFX/dev_env/training_data/'
 
-dir4 = '/home/jhp/Git/AIFX/prod_env/historic_data/GBPUSD/'
+dir4 = '../prod_env/historic_data/GBPUSD/'
 
 # VARIABLES
 data_root_dir = dir2
@@ -94,7 +94,7 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 			
 			real_vals.append(y_real)
 			pred_vals.append(y_pred)
-			pred_diff.append(y_real - y_pred)
+			pred_diff.append(abs(y_real - y_pred))
 			
 			#print(pred_time, y_real, y_pred)
 			
