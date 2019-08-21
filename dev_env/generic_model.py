@@ -17,13 +17,13 @@ from statistics import stdev
 # Data Directories
 dir1 = '/home/jhp/Git/AIFX/dev_env/training_data/'
 dir2 = '/home/jhp/Dukascopy/GBPUSD/'
-dir3 = 'C:/Git/AIFX/dev_env/training_data/'
+dir3 = 'training_data/Dukascopy/GBPUSD/'
 
 dir4 = '../prod_env/historic_data/GBPUSD/'
 
 # VARIABLES
-data_root_dir = dir2
-data_file     = 'GBPUSD_20140101-20190717_21600.csv'
+data_root_dir = dir3
+data_file     = 'GBPUSD_20180717-20190717_7200.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -31,19 +31,19 @@ pred_data_path = 'C:/Git/AIFX/prod_env/historic_data/GBPUSD/'
 pred_data_file = '/'
 pred_data_src  = pred_data_path + pred_data_file
 
-m1 = 'dev_models/GBPUSD_21600_50__0.h5'
+m1 = 'dev_models/GBPUSD_7200_60__4.h5'
 
 batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      15,
+		  'window':      60,
 		  'increment':   1,
-		  'val_split':   0,
+		  'val_split':   0.05,
 		  'deep_layers': 0,
-		  'units':       80,
-		  'dropout':     0.05,
-		  'epochs':      50,
+		  'units':       128,
+		  'dropout':     0.2,
+		  'epochs':      250,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
 		  'optimizer_algo': 'rmsprop',
@@ -81,7 +81,7 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 
 	while t_now <= t_end:
 		pred_time  = t_now + timedelta(seconds=timestep)
-		
+
 		sc = MinMaxScaler(feature_range=(0,1))
 		
 		window_data, y_real = build_window_data(hist_data_path, timestep, window, t_now, pred_time)
@@ -115,7 +115,7 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 					x_label="Time")
 
 	
-def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_name=''):
+def main(train=False, save=True, predict=False, fwd_test=True, plot=True, model_name=m1):
 
 	timestep = params['timestep']
 	window   = params['window']
@@ -157,7 +157,7 @@ def main(train=True, save=True, predict=True, fwd_test=True, plot=True, model_na
 		else:
 			for e in range(params['epochs']):
 				print(e+1)
-				NeuralNet.fit(X_train, y_train, nb_epoch=1, batch_size=1, shuffle=False, validation_split=params['val_split'])
+				NeuralNet.fit(X_train, y_train, epochs=1, batch_size=1, shuffle=False, validation_split=params['val_split'])
 				NeuralNet.reset_states()
 		
 		if save:
