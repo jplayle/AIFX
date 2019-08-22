@@ -318,8 +318,8 @@ def log_results(path='', mode='a', results=[]):
 def plot_prediction(timestep, window, real_values=[], pred_values=[], title="", y_label="", x_label="", path=''):
 	#len_rv = len(real_values)
 	#len_pv = pred_values.size
-	pyplot.plot(real_values)#, [x * timestep for x in range(len_rv)])
-	pyplot.plot(pred_values, linestyle='-.')#, [window + (x * timestep) for x in range(len_pv)])
+	pyplot.plot(real_values, linestyle='-')#, marker='')#, [x * timestep for x in range(len_rv)])
+	pyplot.plot(pred_values, linestyle='-')#, marker='')#, [window + (x * timestep) for x in range(len_pv)])
 	
 	#pyplot.axis([0, timestep*len_rv, min(min(real_values), min(pred_values)), max(max(real_values), max(pred_values))])
 	pyplot.title(title)

@@ -23,7 +23,7 @@ dir4 = '../prod_env/historic_data/GBPUSD/'
 
 # VARIABLES
 data_root_dir = dir3
-data_file     = 'GBPUSD_20180717-20190717_7200.csv'
+data_file     = 'GBPUSD_20180717-20190717_21600.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -37,16 +37,16 @@ batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      60,
+		  'window':      20,
 		  'increment':   1,
 		  'val_split':   0.05,
 		  'deep_layers': 0,
-		  'units':       128,
+		  'units':       80,
 		  'dropout':     0.2,
-		  'epochs':      250,
+		  'epochs':      200,
 		  'batch_size':  32,
 		  'loss_algo':   'mse',
-		  'optimizer_algo': 'rmsprop',
+		  'optimizer_algo': 'adam',
 		  'is_stateful':    True
 		 }
 		 
@@ -67,6 +67,8 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 			return datetime.strptime(csv_r[-1][1], '%Y-%m-%d %H:%M:%S')
 		
 	model = load_model(model_name)
+	
+	model.reset_states()
 			
 	params   = file_names.extract_model_params(model_name)
 	timestep = int(params['timestep'])
@@ -110,12 +112,12 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 					window=window, 
 					real_values=real_vals, 
 					pred_values=pred_vals, 
-					title="GBPUSD", 
+					title="GBPUSD "+str(timestep), 
 					y_label="Price", 
 					x_label="Time")
 
 	
-def main(train=False, save=True, predict=False, fwd_test=True, plot=True, model_name=m1):
+def main(train=True, save=True, predict=False, fwd_test=True, plot=True, model_name=''):
 
 	timestep = params['timestep']
 	window   = params['window']
@@ -155,8 +157,10 @@ def main(train=False, save=True, predict=False, fwd_test=True, plot=True, model_
 								 batch_size      =params['batch_size'],          
 								 callbacks       =[loss_hist, time_hist], shuffle=False)
 		else:
-			for e in range(params['epochs']):
-				print(e+1)
+			epochs = params['epochs']
+			epochs_str = str(epochs)
+			for e in range(epochs):
+				print(str(e+1) + "/" + epochs_str)
 				NeuralNet.fit(X_train, y_train, epochs=1, batch_size=1, shuffle=False, validation_split=params['val_split'])
 				NeuralNet.reset_states()
 		
