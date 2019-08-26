@@ -39,14 +39,13 @@ class FileNaming():
 						
 		return str(uid + 1)
 	
-	def model_filename(self, epic_ccy, params, ave_diff=0, stdev_diff=0, valid_till=''):
+	def model_filename(self, epic_ccy, params, stdev_diff='0#0', valid_till=''):
 		suffix = '.h5'
 		
 		fields = []
 		fields.append(str(params['timestep']))
 		fields.append(str(params['window']))
-		#fields.append(str(ave_diff).replace('.', '#'))
-		#fields.append(str(stdev_diff).replace('.', '#'))
+		fields.append(str(stdev_diff).replace('.', '#'))
 		fields.append(str(valid_till))
 		
 		fname_main = self.field_seperator.join([epic_ccy] + fields)

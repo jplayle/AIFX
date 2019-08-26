@@ -167,7 +167,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 			
 			t_now = clock()
 
-			if t_now - t_prev >= 10:#self.pred_rate:
+			if t_now - t_prev >= self.pred_rate:
 				t_start = (utc_now() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0)
 				today   = date.today()
 				t_prev  = t_now
@@ -176,8 +176,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 					epic_ccy = epic[5:11]
 				
 					for timestep, model_dict in self.model_store[epic_ccy].items():
-						if timestep != 3600: ##########
-							continue
 							
 						if today > model_dict['valid_till']:
 							continue
