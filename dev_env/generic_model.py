@@ -23,7 +23,7 @@ dir4 = '../prod_env/historic_data/GBPUSD/'
 
 # VARIABLES
 data_root_dir = dir3
-data_file     = 'GBPUSD_20180717-20190717_21600.csv'
+data_file     = 'GBPUSD_20140717-20190717_86400.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -37,11 +37,11 @@ batch_test = False
 param_file_path = ''
 
 params = {'timestep':    data_timestep,
-		  'window':      20,
+		  'window':      10,
 		  'increment':   1,
 		  'val_split':   0.05,
 		  'deep_layers': 0,
-		  'units':       80,
+		  'units':       128,
 		  'dropout':     0.2,
 		  'epochs':      200,
 		  'batch_size':  32,
@@ -103,10 +103,12 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 			
 		t_now += timedelta(seconds=timestep)
 		
+	dev_diff = stdev(pred_diff)
+		
 	print('min =', min(pred_diff))
 	print('ave =', sum(p_diff for p_diff in pred_diff) / sum(1 for p in pred_diff))
 	print('max =', max(pred_diff))
-	print('dev =', stdev(pred_diff))
+	print('dev =', dev_diff)
 	
 	plot_prediction(timestep=timestep, 
 					window=window, 
@@ -115,6 +117,8 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 					title="GBPUSD "+str(timestep), 
 					y_label="Price", 
 					x_label="Time")
+	
+	return dev_diff
 
 	
 def main(train=True, save=True, predict=False, fwd_test=True, plot=True, model_name=''):
@@ -163,10 +167,6 @@ def main(train=True, save=True, predict=False, fwd_test=True, plot=True, model_n
 				print(str(e+1) + "/" + epochs_str)
 				NeuralNet.fit(X_train, y_train, epochs=1, batch_size=1, shuffle=False, validation_split=params['val_split'])
 				NeuralNet.reset_states()
-		
-		if save:
-			model_name = file_names.model_filename(epic_ccy='GBPUSD', params=params, valid_till='')
-			NeuralNet.save(model_name)
 
 	if predict:
 		if model_name:
@@ -218,7 +218,14 @@ def main(train=True, save=True, predict=False, fwd_test=True, plot=True, model_n
 							x_label="Time")
 			
 	if fwd_test:
-		forward_test(model_name, dir4, t_start=datetime(2019, 7, 18, 0, 0, 0))
+		dev_diff = forward_test(model_name, dir4, t_start=datetime(2019, 7, 18, 0, 0, 0))
+	else:
+		dev_diff = r'0#0'
+		
+	if save:
+		valid_till = input('Enter a valid till date in format "YYYYMMDD":')
+		model_name = file_names.model_filename(epic_ccy='GBPUSD', params=params, stdev_diff=dev_diff, valid_till=valid_till)
+		NeuralNet.save(model_name)
 
 	
 if __name__ == '__main__':

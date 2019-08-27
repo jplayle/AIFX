@@ -61,16 +61,14 @@ class AIFX_Prod_Variables():
 			epic_ccy   = model_params[0]
 			timestep   = int(model_params[1])
 			window     = int(model_params[2])
-			ave_diff   = float(model_params[3].replace('#', '.'))
 			stdev_diff = float(model_params[4].replace('#', '.'))
 
-			valid_till = model_params[5]
+			valid_till = model_params[3]
 			valid_till = date(int(valid_till[:4]), int(valid_till[4:6]), int(valid_till[6:8]))
 
-			self.model_store[epic_ccy][timestep] = {'FRANN':      self.model_dir + model_file,
+			self.model_store[epic_ccy][timestep] = {'FRANN':  self.model_dir + model_file,
 												'window':     window,
 												'valid_till': valid_till,
-												'err_ave':    ave_diff,
 												'err_stdev':  stdev_diff
 												}
 	
