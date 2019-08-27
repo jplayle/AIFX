@@ -11,7 +11,6 @@ from time import (clock, sleep, time)
 from datetime import datetime, timedelta
 
 from AIFX_common_PROD import *
-
 	
 
 class HumanMachineInterface(AIFX_Prod_Variables):
@@ -20,6 +19,12 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		AIFX_Prod_Variables.__init__(self)
 		
 		AIFX_Prod_Variables.load_models(self)
+		
+		self.arg_vals = {'epic':        '',
+						't_now':        (datetime.utcnow() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0),
+						'max_pred_time': 1e12,
+						'n_sigma':       1.8
+						}
 		
 	def get_real_plot_data(self, _epic_ccy, nrows=1):
 		
@@ -50,7 +55,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 		return (times[::-1], prices[::-1])
 	
-	def get_pred_plot_data(self, _epic_ccy, _timestep, dt_start, dt_end=None, _ave_err=0, _stdev_err=0, _n_stdev=1):
+	def get_pred_plot_data(self, _epic_ccy, _timestep, dt_start, dt_end=None, _stdev_err=0, _n_stdev=1):
 		
 		if not dt_end:
 			dt_end = dt_start + timedelta(seconds=_timestep)
@@ -112,27 +117,41 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 	def trade_graph(self, _arg_vals):
 		"""
-		End goal:
-		- plot up to max timestep into the future
-		- add min & max deviations
+		args:
+		- epic_ccy
+		- t_now
+		- max_pred_time
+		- n_sigma
 		"""
-		args = ['epic', '', '']
-		for arg in args:
-		try:
-			epic_ccy = _arg_vals['epic']
-		except KeyError:
-			return
-		
 		style.use('seaborn')
-		
-		dt_now = (datetime.utcnow() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0)
 		
 		timestep_dict = self.model_store[epic_ccy]
 
 		ordered_tsteps = sorted([t for t in timestep_dict])
 		max_tstep      = ordered_tsteps[-1]
 		min_tstep      = ordered_tsteps[0]
-
+		
+		def parse_arg_vals(argvals):
+			if not argvals['epic']:
+				return False
+			
+			for arg, val in argvals.items():
+				if arg == 't_now':
+					self.arg_vals[arg] = strptime(val, '%Y-%m-%d %H:%M:%S')
+					
+				elif arg == 'max_pred_time':
+					self.arg_vals[arg] = int(val)
+					
+				elif arg == 'n_sigma':
+					self.arg_vals[arg] = float(val)
+				
+			return True
+			
+		arg_vals_OK = parse_arg_vals(_arg_vals)
+		
+		if not arg_vals_OK:
+			return
+			
 		pred_data_tstart = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') - timedelta(seconds=max_tstep)
 		pred_data_t_end  = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') + timedelta(seconds=min_tstep)
 
@@ -148,9 +167,9 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 			stdev_err = float(model_dict['err_stdev'])
 
 			if timestep == min_tstep:
-				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, dt_end=pred_data_t_end, _ave_err=ave_err, _stdev_err=stdev_err, _n_stdev=n_stdev)
+				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, dt_end=pred_data_t_end, _stdev_err=stdev_err, _n_stdev=n_stdev)
 			else:
-				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _ave_err=ave_err, _stdev_err=stdev_err, _n_stdev=n_stdev)
+				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _stdev_err=stdev_err, _n_stdev=n_stdev)
 
 			colour = colour_vals[timestep]
 
@@ -179,7 +198,8 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		#pickle.dump(ax1, open(self.output_dir+epic_ccy+'/'+epic_ccy+'_Graph'+'.pickle', "wb"))
 		plt.clf()
 					
-			
+		
+		
 class Indicators():
 
 	#Currencies to analyse
@@ -292,26 +312,16 @@ class Indicators():
 		plt.show()
 		
 	   
-	# def standard_dev(self)
-		# a
-
-	# def boxplot(self)
-		# a
-
-	# def direction(self)
-		# a
-
-	# def gain_v_loss(self)
-		# 
 		
 def main():
-	
-	arg_vals = {}
-	for argval_pair in argv[1:]:
-		arg, val = argval_pair.split('=')
-		args[arg] = val
 
 	HMI = HumanMachineInterface()
+	
+	arg_vals = {'epic': ''}
+	
+	for argval_pair in argv[1:]:
+		arg, val = argval_pair.split('=')
+		arg_vals[arg] = val
 
 	HMI.trade_graph(arg_vals)
 
