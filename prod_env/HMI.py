@@ -20,10 +20,11 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 		AIFX_Prod_Variables.load_models(self)
 		
-		self.arg_vals = {'epic':        '',
-						't_now':        (datetime.utcnow() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0),
-						'max_pred_time': 1e12,
-						'n_sigma':       1.8
+		self.arg_vals = {'epic':          '',
+						't_now':          (datetime.utcnow() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0),
+						'max_pred_time':   1e12,
+						'n_sigma':         1.8, 
+						'historic_tsteps': []
 						}
 		
 	def get_real_plot_data(self, _epic_ccy, nrows=1):
@@ -122,14 +123,9 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		- t_now
 		- max_pred_time
 		- n_sigma
+		- historic_tsteps
 		"""
 		style.use('seaborn')
-		
-		timestep_dict = self.model_store[epic_ccy]
-
-		ordered_tsteps = sorted([t for t in timestep_dict])
-		max_tstep      = ordered_tsteps[-1]
-		min_tstep      = ordered_tsteps[0]
 		
 		def parse_arg_vals(argvals):
 			if not argvals['epic']:
@@ -137,39 +133,66 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 			
 			for arg, val in argvals.items():
 				if arg == 't_now':
-					self.arg_vals[arg] = strptime(val, '%Y-%m-%d %H:%M:%S')
-					
+					try:
+						self.arg_vals[arg] = datetime.strptime(val, '%Y-%m-%d_%H:%M:%S')
+					except ValueError:
+						return False
+						
 				elif arg == 'max_pred_time':
-					self.arg_vals[arg] = int(val)
+					try:
+						self.arg_vals[arg] = int(val)
+					except ValueError:
+						return False
 					
 				elif arg == 'n_sigma':
-					self.arg_vals[arg] = float(val)
-				
+					try:
+						self.arg_vals[arg] = float(val)
+					except ValueError:
+						return False
+						
+				elif arg == 'historic_tsteps':
+					try:
+						self.arg_vals[arg] = [int(t) for t in list(arg)]
+					except ValueError:
+						return False
+					
 			return True
 			
 		arg_vals_OK = parse_arg_vals(_arg_vals)
 		
 		if not arg_vals_OK:
 			return
+		return
+		
+		timestep_dict = self.model_store[epic_ccy]
+
+		ordered_tsteps = sorted([t for t in timestep_dict])
+		max_tstep      = ordered_tsteps[-1]
+		min_tstep      = ordered_tsteps[0]
 			
 		pred_data_tstart = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') - timedelta(seconds=max_tstep)
 		pred_data_t_end  = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') + timedelta(seconds=min_tstep)
+		
 
 		colour_vals = {timestep: self.int_to_RGB(timestep) for timestep in ordered_tsteps}
 
 		fig = plt.figure()#target_epics.index(epic)+1)
 		ax1 = fig.add_subplot(1,1,1)
+		
+		
+		historic_tsteps = self.arg_vals['historic_tsteps']
+		if historic_tsteps == []:
+			historic_tsteps == ordered_tsteps
 
 		for timestep in ordered_tsteps:
 			model_dict = timestep_dict[timestep]
 
-			ave_err   = float(model_dict['err_ave']) 
-			stdev_err = float(model_dict['err_stdev'])
-
-			if timestep == min_tstep:
+			stdev_err = model_dict['err_stdev']
+			
+			if timestep in historic_tsteps:
 				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, dt_end=pred_data_t_end, _stdev_err=stdev_err, _n_stdev=n_stdev)
-			else:
-				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _stdev_err=stdev_err, _n_stdev=n_stdev)
+
+			X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _stdev_err=stdev_err, _n_stdev=n_stdev)
 
 			colour = colour_vals[timestep]
 
@@ -320,7 +343,7 @@ def main():
 	arg_vals = {'epic': ''}
 	
 	for argval_pair in argv[1:]:
-		arg, val = argval_pair.split('=')
+		arg, val      = argval_pair.split('=')
 		arg_vals[arg] = val
 
 	HMI.trade_graph(arg_vals)
