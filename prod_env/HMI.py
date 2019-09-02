@@ -49,6 +49,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 						times.append(datetime.strptime(data_row[1], '%Y-%m-%d %H:%M:%S'))
 						
 						len_d += 1
+						print(len_d, end='\r')
 					except IndexError:
 						break
 					except ValueError:
@@ -128,8 +129,11 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		style.use('seaborn')
 		
 		def parse_arg_vals(argvals):
-			if not argvals['epic']:
+			epic = argvals['epic']
+			if not epic:
 				return False
+			else:
+				self.arg_vals['epic'] = epic
 			
 			for arg, val in argvals.items():
 				if arg == 't_now':
@@ -162,7 +166,10 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 		if not arg_vals_OK:
 			return
-		return
+		
+		
+		epic_ccy = self.arg_vals['epic']
+		t_now    = self.arg_vals['t_now']
 		
 		timestep_dict = self.model_store[epic_ccy]
 
@@ -170,15 +177,13 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		max_tstep      = ordered_tsteps[-1]
 		min_tstep      = ordered_tsteps[0]
 			
-		pred_data_tstart = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') - timedelta(seconds=max_tstep)
-		pred_data_t_end  = datetime.strptime('2019-08-09 20:57:00', '%Y-%m-%d %H:%M:%S') + timedelta(seconds=min_tstep)
+		hist_data_tstart = t_now - timedelta(seconds=max_tstep)
+		pred_data_tstart = t_now
 		
-
 		colour_vals = {timestep: self.int_to_RGB(timestep) for timestep in ordered_tsteps}
 
 		fig = plt.figure()#target_epics.index(epic)+1)
 		ax1 = fig.add_subplot(1,1,1)
-		
 		
 		historic_tsteps = self.arg_vals['historic_tsteps']
 		if historic_tsteps == []:
@@ -188,16 +193,18 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 			model_dict = timestep_dict[timestep]
 
 			stdev_err = model_dict['err_stdev']
+			n_stdev   = self.arg_vals['n_sigma']
+			
+			colour = colour_vals[timestep]
 			
 			if timestep in historic_tsteps:
-				X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, dt_end=pred_data_t_end, _stdev_err=stdev_err, _n_stdev=n_stdev)
+				X_pred, Y_pred, U_pred, L_pred, ignore = self.get_pred_plot_data(epic_ccy, timestep, dt_start=hist_data_tstart, dt_end=t_now, _stdev_err=stdev_err, _n_stdev=n_stdev)
+				ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
+				ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
+				ax1.plot(X_pred, L_pred, linestyle=":", color=colour)
 
 			X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _stdev_err=stdev_err, _n_stdev=n_stdev)
-
-			colour = colour_vals[timestep]
-
 			ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
-
 			ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
 			ax1.plot(X_pred, L_pred, linestyle=":", color=colour)
 
@@ -206,7 +213,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		nrows_historic = int(max_tstep / self.data_interval_sec)
 
 		X_hist, Y_hist   = self.get_real_plot_data(epic_ccy, nrows=nrows_historic)
-
+		
 		ax1.plot(X_hist, Y_hist, color="red", label="Real")
 
 		#FORMAT PLOT
