@@ -176,11 +176,12 @@ class FRANN_Operations(AIFX_Prod_Variables):
 					epic_ccy = epic[5:11]
 				
 					for timestep, model_dict in self.model_store[epic_ccy].items():
+						
+						pred_time = t_start + timedelta(seconds=timestep)
 							
 						if today > model_dict['valid_till']:
+							self.write_prediction(epic_ccy, timestep, pred_time, [''])
 							continue
-							
-						pred_time  = t_start + timedelta(seconds=timestep)
 						
 						FRANN  = load_model(model_dict['FRANN'])
 						window = model_dict['window']
@@ -199,6 +200,9 @@ class FRANN_Operations(AIFX_Prod_Variables):
 							self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
 						else:
 							self.write_prediction(epic_ccy, timestep, pred_time, [''])
+							
+						window_data = []
+						FRANN       = None
 
 	
 def main():

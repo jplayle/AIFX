@@ -49,9 +49,8 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 						times.append(datetime.strptime(data_row[1], '%Y-%m-%d %H:%M:%S'))
 						
 						len_d += 1
-						print(len_d, end='\r')
 					except IndexError:
-						break
+						continue
 					except ValueError:
 						continue
 		
@@ -166,8 +165,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 		if not arg_vals_OK:
 			return
-		
-		
+			
 		epic_ccy = self.arg_vals['epic']
 		t_now    = self.arg_vals['t_now']
 		
