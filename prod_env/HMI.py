@@ -27,40 +27,39 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 						'historic_tsteps': []
 						}
 		
-	def get_real_plot_data(self, _epic_ccy, nrows=1):
+	def get_real_plot_data(self, _epic_ccy, dt_start, dt_end):
 		
 		fpath = self.data_dir + _epic_ccy
 		
 		times  = []
 		prices = []
-		len_d  = 0
 		
-		for data_file in sorted(listdir(fpath))[::-1]:
+		for data_file in sorted(listdir(fpath)):
 			
 			with open(fpath + '/' + data_file, 'r') as csv_f:
-				csv_r = list(reader(csv_f))[::-1]
-				csv_r.pop(-1)
+				csv_r = reader(csv_f)
+				csv_r.__next__() #remove headers
 				
-				for r in range(nrows - len_d):
-					try:
-						data_row = csv_r[r]
+				for data_row in csv_r:
+					dt = datetime.strptime(data_row[1], '%Y-%m-%d %H:%M:%S')
+					if dt > dt_start and dt <= dt_end:
+						try:
+							prices.append(float(data_row[self.pred_data_index]))
+							times.append(dt)
+						except IndexError:
+							break
+						except ValueError:
+							continue
+					elif dt > dt_end:
+						return (times, prices)
 						
-						prices.append(float(data_row[self.pred_data_index]))
-						times.append(datetime.strptime(data_row[1], '%Y-%m-%d %H:%M:%S'))
-						
-						len_d += 1
-						print(len_d, end='\r')
-					except IndexError:
-						break
-					except ValueError:
-						continue
-		
-		return (times[::-1], prices[::-1])
+		return (times, prices)
 	
 	def get_pred_plot_data(self, _epic_ccy, _timestep, dt_start, dt_end=None, _stdev_err=0, _n_stdev=1):
 		
 		if not dt_end:
 			dt_end = dt_start + timedelta(seconds=_timestep)
+			print(_timestep, dt_start, dt_end)
 		
 		fpath = self.output_dir + _epic_ccy
 		
@@ -68,7 +67,6 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		prices = []
 		u_band = []
 		l_band = []
-		len_d  = 0
 		
 		upper_tol = (_stdev_err * _n_stdev)  # + _ave_err
 		lower_tol = - (_stdev_err * _n_stdev)# + _ave_err
@@ -78,13 +76,9 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		for file in listdir(fpath):
 			file_params = file.split('_')
 			
-			file_year  = int(file_params[1])
-			file_month = int(file_params[2])
-			
-			if file_year == dt_start.year and file_month == dt_start.month:
-				file_tstep = int(file_params[-1].replace('.csv', ''))
-				if file_tstep == _timestep:
-					data_files.append(file)
+			file_tstep = int(file_params[-1].replace('.csv', ''))
+			if file_tstep == _timestep:
+				data_files.append(file)
 					
 		data_files = sorted(data_files)
 		
@@ -101,14 +95,14 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 							l_band.append(price + lower_tol)
 
 							times.append(dt)
-
-							len_d += 1
 						except IndexError:
 							break
 						except ValueError:
 							continue
+					elif dt > dt_end:
+						return (times, prices, u_band, l_band, dt_end)
 		
-		return (times[::-1], prices[::-1], u_band[::-1], l_band[::-1], dt_end)
+		return (times, prices, u_band, l_band, dt_end)
 	
 	def int_to_RGB(self, integer):
 		""" Takes an integer value and converts it to a tuple of floats representing an RGB colour value. """
@@ -167,7 +161,6 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		if not arg_vals_OK:
 			return
 		
-		
 		epic_ccy = self.arg_vals['epic']
 		t_now    = self.arg_vals['t_now']
 		
@@ -202,7 +195,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 				ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
 				ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
 				ax1.plot(X_pred, L_pred, linestyle=":", color=colour)
-
+			
 			X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _stdev_err=stdev_err, _n_stdev=n_stdev)
 			ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
 			ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
@@ -210,9 +203,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 
 			pred_data_tstart = new_tstart
 
-		nrows_historic = int(max_tstep / self.data_interval_sec)
-
-		X_hist, Y_hist   = self.get_real_plot_data(epic_ccy, nrows=nrows_historic)
+		X_hist, Y_hist   = self.get_real_plot_data(epic_ccy, dt_start=hist_data_tstart, dt_end=t_now)
 		
 		ax1.plot(X_hist, Y_hist, color="red", label="Real")
 
