@@ -13,10 +13,6 @@ from sklearn.preprocessing import MinMaxScaler
 
 from AIFX_common_PROD import *
 
-import psutil
-
-process = psutil.Process(getpid())
-
 
 class FRANN_Operations(AIFX_Prod_Variables):
 	
