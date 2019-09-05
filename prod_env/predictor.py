@@ -9,7 +9,6 @@ from datetime import timedelta
 from time import clock, sleep
 
 import numpy as np
-from keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
 
 from AIFX_common_PROD import *
@@ -173,7 +172,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 
 			if t_now - t_prev >= self.pred_rate:
 				t_start = (utc_now() - timedelta(seconds=self.data_interval_sec)).replace(second=0, microsecond=0)
-				print(t_start)
 				today   = date.today()
 				t_prev  = t_now
 
@@ -181,27 +179,22 @@ class FRANN_Operations(AIFX_Prod_Variables):
 					epic_ccy = epic[5:11]
 				
 					for timestep, model_dict in self.model_store[epic_ccy].items():
-						print(1, process.memory_info()[0])
 						if today > model_dict['valid_till']:
 							continue
 							
 						pred_time  = t_start + timedelta(seconds=timestep)
 						
-						FRANN  = load_model(model_dict['FRANN'])
-						print(2, process.memory_info()[0])
+						FRANN  = model_dict['FRANN']
 						window = model_dict['window']
 						
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
-						print(3, process.memory_info()[0])
 
 						if window_data != []:
 							window_data = sc.fit_transform(window_data)
-							print(4, process.memory_info()[0])
 							
 							window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
-							print(5, process.memory_info()[0])
 							
 							prediction = FRANN.predict(window_data)
 							pred_price = sc.inverse_transform(prediction)[0][0]
@@ -209,8 +202,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 							self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
 						else:
 							self.write_prediction(epic_ccy, timestep, pred_time, [''])
-							
-						print(6, process.memory_info()[0])
 
 	
 def main():

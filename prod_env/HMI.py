@@ -9,6 +9,7 @@ from matplotlib.widgets import Cursor
 
 from time import (clock, sleep, time)
 from datetime import datetime, timedelta
+from gc import collect as collect_garbage
 
 from AIFX_common_PROD import *
 	
