@@ -73,7 +73,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		x_prev      = 0
 		
 		initiate = True
-		
+		fu = 0
 		for data_file in data_files:
 
 			with open(data_path + data_file, 'r') as csv_f:
@@ -83,7 +83,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 				j = 0
 				if initiate:
 					for r in csv_r[::-1]:
-						break
 						data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
 						if data_time == t_start:
 							r_skip_newf = j
@@ -109,11 +108,12 @@ class FRANN_Operations(AIFX_Prod_Variables):
 			
 				for x in range(window - w_len):					
 					i = -((x * row_skip) + r_skip_newf) - 1
-
+					print(i)
 					try:
 						data_point = csv_r[i][self.pred_data_index]
 						if data_point == '':
 							data_point = search_around_blank(csv_r, i, row_skip)
+						print(data_point)
 						try:
 							float(data_point)
 							window_data.append([data_point])
@@ -186,7 +186,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
-
+						
 						if window_data != []:
 							window_data = sc.fit_transform(window_data)
 							
