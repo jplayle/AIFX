@@ -16,7 +16,7 @@ sudo systemctl restart vsftpd.service
 
 
 SCP Commands
-Move Scripts:
+Push Scripts:
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/AIFX_common_PROD.py ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env
 
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/data_logger.py ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env
@@ -24,13 +24,13 @@ scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/data_logger.py ubuntu@ec2
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/predictor.py ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env
 
 
-Move Models:
+Push Models:
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ~/Git/AIFX/prod_env/models/*model name* ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/models
 
 pscp -i "../bin/AIFX_key.ppk" "dev_models/GBPUSD_3600_60_20191001_1.h5" ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/models
 
 
-Get Data:
+Pull Data:
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/historic_data/GBPUSD/* ~/Git/AIFX/prod_env/historic_data/GBPUSD
 
 scp -i ~/Git/AIFX/bin/AIFX_key.pem ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com:/home/ubuntu/prod_env/predicted_data/GBPUSD/* ~/Git/AIFX/prod_env/predicted_data/GBPUSD

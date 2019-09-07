@@ -1,0 +1,2 @@
+#!/bin/bash
+ssh -i AIFX_key.pem ubuntu@ec2-3-9-171-184.eu-west-2.compute.amazonaws.com "cd prod_env && python3 HMI.py epic=GBPUSD t_now=2019-08-06_17:00:00 n_sigma=1 && exit"

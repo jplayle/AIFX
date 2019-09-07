@@ -53,24 +53,13 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 							continue
 					elif dt > dt_end:
 						return (times, prices)
-						
-<<<<<<< HEAD
-						len_d += 1
-					except IndexError:
-						continue
-					except ValueError:
-						continue
-		
-		return (times[::-1], prices[::-1])
-=======
+
 		return (times, prices)
->>>>>>> e95ce523a89c8bba9fcf639e0d2fcf02146c3c1d
 	
 	def get_pred_plot_data(self, _epic_ccy, _timestep, dt_start, dt_end=None, _stdev_err=0, _n_stdev=1):
 		
 		if not dt_end:
 			dt_end = dt_start + timedelta(seconds=_timestep)
-			print(_timestep, dt_start, dt_end)
 		
 		fpath = self.output_dir + _epic_ccy
 		
@@ -161,7 +150,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 						
 				elif arg == 'historic_tsteps':
 					try:
-						self.arg_vals[arg] = [int(t) for t in list(arg)]
+						self.arg_vals[arg] = [int(t) for t in eval(val)]
 					except ValueError:
 						return False
 					
@@ -171,11 +160,7 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		
 		if not arg_vals_OK:
 			return
-<<<<<<< HEAD
-			
-=======
-		
->>>>>>> e95ce523a89c8bba9fcf639e0d2fcf02146c3c1d
+
 		epic_ccy = self.arg_vals['epic']
 		t_now    = self.arg_vals['t_now']
 		
@@ -193,10 +178,9 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		fig = plt.figure()#target_epics.index(epic)+1)
 		ax1 = fig.add_subplot(1,1,1)
 		
-		historic_tsteps = self.arg_vals['historic_tsteps']
-		if historic_tsteps == []:
-			historic_tsteps == ordered_tsteps
-
+		if self.arg_vals['historic_tsteps'] == []:
+			self.arg_vals['historic_tsteps'] = ordered_tsteps
+			
 		for timestep in ordered_tsteps:
 			model_dict = timestep_dict[timestep]
 
@@ -205,11 +189,11 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 			
 			colour = colour_vals[timestep]
 			
-			if timestep in historic_tsteps:
+			if timestep in self.arg_vals['historic_tsteps']:
 				X_pred, Y_pred, U_pred, L_pred, ignore = self.get_pred_plot_data(epic_ccy, timestep, dt_start=hist_data_tstart, dt_end=t_now, _stdev_err=stdev_err, _n_stdev=n_stdev)
-				ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
-				ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
-				ax1.plot(X_pred, L_pred, linestyle=":", color=colour)
+				ax1.plot(X_pred, Y_pred, color=colour)
+				#ax1.plot(X_pred, U_pred, linestyle=":", color=colour)
+				#ax1.plot(X_pred, L_pred, linestyle=":", color=colour)
 			
 			X_pred, Y_pred, U_pred, L_pred, new_tstart = self.get_pred_plot_data(epic_ccy, timestep, pred_data_tstart, _stdev_err=stdev_err, _n_stdev=n_stdev)
 			ax1.plot(X_pred, Y_pred, color=colour, label=str(int(timestep/3600))+" hour model")
@@ -223,15 +207,15 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		ax1.plot(X_hist, Y_hist, color="red", label="Real")
 
 		#FORMAT PLOT
-		plt.legend()
+		plt.legend(bbox_to_anchor=(0.1,1))
 		plt.title(epic_ccy)
 		plt.xlabel('Time')
 		plt.ylabel('Price')   
 
-		plt.show()
+		#plt.savefig(epic_ccy)
 
 		#SAVE PLOT LIVE
-		#pickle.dump(ax1, open(self.output_dir+epic_ccy+'/'+epic_ccy+'_Graph'+'.pickle', "wb"))
+		pickle.dump(ax1, open('graphs/'+epic_ccy+'.pickle', "wb"))
 		plt.clf()
 					
 		
