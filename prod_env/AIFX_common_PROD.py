@@ -5,6 +5,8 @@ from os import listdir
 from csv import reader, writer
 from datetime import date, datetime
 
+from keras.models import load_model
+
 class AIFX_Prod_Variables():
 	
 	def __init__(self):
@@ -66,7 +68,7 @@ class AIFX_Prod_Variables():
 			valid_till = model_params[3]
 			valid_till = date(int(valid_till[:4]), int(valid_till[4:6]), int(valid_till[6:8]))
 
-			self.model_store[epic_ccy][timestep] = {'FRANN':  self.model_dir + model_file,
+			self.model_store[epic_ccy][timestep] = {'FRANN':  load_model(self.model_dir + model_file),
 												'window':     window,
 												'valid_till': valid_till,
 												'err_stdev':  stdev_diff

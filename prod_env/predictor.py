@@ -4,12 +4,11 @@ NOTES
 
 """
 
-from os import listdir, mkdir, path
+from os import listdir, mkdir, path, getpid
 from datetime import timedelta
 from time import clock, sleep
 
 import numpy as np
-from keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
 
 from AIFX_common_PROD import *
@@ -74,7 +73,7 @@ class FRANN_Operations(AIFX_Prod_Variables):
 		x_prev      = 0
 		
 		initiate = True
-		
+		fu = 0
 		for data_file in data_files:
 
 			with open(data_path + data_file, 'r') as csv_f:
@@ -84,7 +83,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 				j = 0
 				if initiate:
 					for r in csv_r[::-1]:
-						break
 						data_time = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S')
 						if data_time == t_start:
 							r_skip_newf = j
@@ -110,11 +108,12 @@ class FRANN_Operations(AIFX_Prod_Variables):
 			
 				for x in range(window - w_len):					
 					i = -((x * row_skip) + r_skip_newf) - 1
-
+					print(i)
 					try:
 						data_point = csv_r[i][self.pred_data_index]
 						if data_point == '':
 							data_point = search_around_blank(csv_r, i, row_skip)
+						print(data_point)
 						try:
 							float(data_point)
 							window_data.append([data_point])
@@ -176,22 +175,26 @@ class FRANN_Operations(AIFX_Prod_Variables):
 					epic_ccy = epic[5:11]
 				
 					for timestep, model_dict in self.model_store[epic_ccy].items():
+<<<<<<< HEAD
 						
 						pred_time = t_start + timedelta(seconds=timestep)
 							
+=======
+>>>>>>> e95ce523a89c8bba9fcf639e0d2fcf02146c3c1d
 						if today > model_dict['valid_till']:
 							self.write_prediction(epic_ccy, timestep, pred_time, [''])
 							continue
 						
-						FRANN  = load_model(model_dict['FRANN'])
+						FRANN  = model_dict['FRANN']
 						window = model_dict['window']
 						
 						sc = MinMaxScaler(feature_range=(0,1))
 						
 						window_data = self.build_window_data(epic_ccy, timestep, window, t_start)
-
+						
 						if window_data != []:
 							window_data = sc.fit_transform(window_data)
+							
 							window_data = np.reshape(window_data, (window_data.shape[1], window_data.shape[0], 1))
 							
 							prediction = FRANN.predict(window_data)
