@@ -2,11 +2,11 @@ from sys import argv
 
 #import pandas as pd
 import pickle
-
 import matplotlib.pyplot as plt
+import subprocess
+
 from matplotlib import style
 from matplotlib.widgets import Cursor
-
 from time import (clock, sleep, time)
 from datetime import datetime, timedelta
 from gc import collect as collect_garbage
@@ -212,12 +212,12 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		plt.xlabel('Time')
 		plt.ylabel('Price')   
 
-		#plt.savefig(epic_ccy)
-
-		#SAVE PLOT LIVE
+		#plt.show()
+		plt.savefig('graphs/'+epic_ccy)
 		pickle.dump(ax1, open('graphs/'+epic_ccy+'.pickle', "wb"))
 		plt.clf()
-					
+		
+		subprocess.run(['scp', '-i'])
 		
 		
 class Indicators():

@@ -70,9 +70,6 @@ class IG_API(AIFX_Prod_Variables):
 	connection_path    = "/lightstreamer/create_session.txt"
 	binding_path	   = "/lightstreamer/bind_session.txt"
 	control_path	   = "/lightstreamer/control.txt"
-	
-	FX_market_global_open_t  = dt_time(20) #open hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc) 
-	FX_market_global_close_t = dt_time(21) #close hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc)
 
 	def __init__(self, comms=False):
 		

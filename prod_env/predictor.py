@@ -108,12 +108,11 @@ class FRANN_Operations(AIFX_Prod_Variables):
 			
 				for x in range(window - w_len):					
 					i = -((x * row_skip) + r_skip_newf) - 1
-					print(i)
+				
 					try:
 						data_point = csv_r[i][self.pred_data_index]
 						if data_point == '':
 							data_point = search_around_blank(csv_r, i, row_skip)
-						print(data_point)
 						try:
 							float(data_point)
 							window_data.append([data_point])
@@ -175,15 +174,24 @@ class FRANN_Operations(AIFX_Prod_Variables):
 					epic_ccy = epic[5:11]
 				
 					for timestep, model_dict in self.model_store[epic_ccy].items():
-<<<<<<< HEAD
 						
-						pred_time = t_start + timedelta(seconds=timestep)
-							
-=======
->>>>>>> e95ce523a89c8bba9fcf639e0d2fcf02146c3c1d
 						if today > model_dict['valid_till']:
 							self.write_prediction(epic_ccy, timestep, pred_time, [''])
 							continue
+							
+						pred_time = t_start + timedelta(seconds=timestep)
+						pred_wday = pred_time.weekday()
+						if pred_wday in [4, 5, 6]:
+							iday_time = dt_time(pred_time.hour, pred_time.minute)
+							if pred_wday == 4:
+								if iday_time > self.FX_market_global_close_t:
+									continue
+							elif pred_wday == 6:
+								if iday_time < self.FX_market_global_open_t:
+									continue
+							else:
+								continue
+							
 						
 						FRANN  = model_dict['FRANN']
 						window = model_dict['window']
@@ -203,9 +211,6 @@ class FRANN_Operations(AIFX_Prod_Variables):
 							self.write_prediction(epic_ccy, timestep, pred_time, [pred_price])
 						else:
 							self.write_prediction(epic_ccy, timestep, pred_time, [''])
-							
-						window_data = []
-						FRANN       = None
 
 	
 def main():

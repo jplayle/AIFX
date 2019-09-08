@@ -4,6 +4,7 @@ AIFX Production Environment - Common Variables & Functions.
 from os import listdir
 from csv import reader, writer
 from datetime import date, datetime
+from datetime import time as dt_time
 
 from keras.models import load_model
 
@@ -47,7 +48,10 @@ class AIFX_Prod_Variables():
 		
 		self.pred_data_index = 2 #column for data extraction
 		
-		self.data_written_buffer = 2 #shift prediction time back n rows so it's guaranteed all data for that timestamp will have been written 
+		self.data_written_buffer = 2 #shift prediction time back n rows so it's guaranteed all data for that timestamp will have been written
+		
+		self.FX_market_global_open_t  = dt_time(hour=20) #open hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc) 
+		self.FX_market_global_close_t = dt_time(hour=21) #close hour MUST be in GMT/UTC as a stationary reference (doesn't change for DST etc)
 		
 	def load_models(self):
 		"""
