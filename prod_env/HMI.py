@@ -217,8 +217,6 @@ class HumanMachineInterface(AIFX_Prod_Variables):
 		pickle.dump(ax1, open('graphs/'+epic_ccy+'.pickle', "wb"))
 		plt.clf()
 		
-		subprocess.run(['scp', '-i'])
-		
 		
 class Indicators():
 
