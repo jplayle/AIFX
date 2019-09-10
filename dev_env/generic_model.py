@@ -23,7 +23,7 @@ dir4 = '../prod_env/historic_data/GBPUSD/'
 
 # VARIABLES
 data_root_dir = dir3
-data_file     = 'GBPUSD_20140717-20190717_86400.csv'
+data_file     = 'GBPUSD_20180717-20190717_7200.csv'
 training_data_src = data_root_dir + data_file
 data_timestep = extract_training_set_timestep(data_file)
 
@@ -31,7 +31,7 @@ pred_data_path = 'C:/Git/AIFX/prod_env/historic_data/GBPUSD/'
 pred_data_file = '/'
 pred_data_src  = pred_data_path + pred_data_file
 
-m1 = 'dev_models/GBPUSD_7200_60__4.h5'
+m1 = 'dev_models/GBPUSD_7200_60_20191001_0#00127_4.h5'
 
 batch_test = False
 param_file_path = ''
@@ -118,10 +118,48 @@ def forward_test(model_name, hist_data_path, t_start, t_interval=60):
 					y_label="Price", 
 					x_label="Time")
 	
-	return dev_diff
+	return (dev_diff, real_vals, pred_vals)
+
+def test_strategy(real_vals, pred_vals, stdev_diff, n_sigma, account=1000):
+	
+	long       = False
+	short      = False
+	
+	for i in range(len(real_vals)):
+		real_val = real_vals[i]
+		pred_val = pred_vals[i]
+		
+		if not long and not short:
+			if real_val > pred_val + (stdev_diff * n_sigma):
+				short = True
+				p1    = real_val
+				continue
+			elif real_val < pred_val - (stdev_diff * n_sigma):
+				long = True
+				p1   = real_val
+				continue
+			
+		if long:
+			if real_val >= pred_val:
+				p2 = real_val
+				prof = p2 - p1
+				account += account * (prof/p1)
+				print(prof)
+				long = False
+				continue
+		elif short:
+			if real_val <= pred_val:
+				p2 = real_val
+				prof = p1 - p2
+				account += account * (prof/p1)
+				print(prof)
+				short = False
+				continue
+				
+	print(account)
 
 	
-def main(train=True, save=True, predict=False, fwd_test=True, plot=True, model_name=''):
+def main(train=False, save=False, predict=False, fwd_test=True, plot=True, model_name=m1):
 
 	timestep = params['timestep']
 	window   = params['window']
@@ -218,7 +256,10 @@ def main(train=True, save=True, predict=False, fwd_test=True, plot=True, model_n
 							x_label="Time")
 			
 	if fwd_test:
-		dev_diff = forward_test(model_name, dir4, t_start=datetime(2019, 7, 18, 0, 0, 0))
+		results  = forward_test(model_name, dir4, t_start=datetime(2019, 7, 18, 0, 0, 0))
+		dev_diff = results[0]
+		print(dev_diff)
+		test_strategy(results[1], results[2], dev_diff, n_sigma=2)
 	else:
 		dev_diff = r'0#0'
 		
