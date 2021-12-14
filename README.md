@@ -11,7 +11,7 @@ Resources:
 https://keras.io/
 https://www.numpy.org/
 
-#bin#
+\bin\/
 Contains dependencies etc
 
 #code#
