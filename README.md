@@ -12,7 +12,7 @@ https://keras.io/
 https://www.numpy.org/
 
 #bin#
-Contains all relevant executables
+Contains dependencies etc
 
 #code#
 Contains all relevant code, including...
