@@ -14,17 +14,17 @@ https://www.numpy.org/
 `bin/`
 Contains dependencies etc
 
-#code#
+`code/`
 Contains all relevant code, including...
 
-#data#
+`data/`
 Contains all utilised data
 
-#models#
+`models/`
 Contains all historic prediction models
 
-#reference#
+`reference/`
 Contains all sources of information used for creating all parts of project
 
-#testing#
+`testing/`
 Contains planned test schedule, and run test results
