@@ -14,17 +14,11 @@ https://www.numpy.org/
 `bin/`
 Contains dependencies etc
 
-`code/`
-Contains all relevant code, including...
+`dev_env/`
+Contains all resources for training of new LSTM prediction models.
 
-`data/`
-Contains all utilised data
-
-`models/`
-Contains all historic prediction models
+`prod_env/`
+Contains all live prediction models and prediction storage/logging.
 
 `reference/`
 Contains all sources of information used for creating all parts of project
-
-`testing/`
-Contains planned test schedule, and run test results
